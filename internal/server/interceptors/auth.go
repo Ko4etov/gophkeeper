@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/Ko4etov/gophkeeper/internal/server/auth"
-	"github.com/Ko4etov/gophkeeper/internal/server/service/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -27,13 +26,10 @@ func NewAuthInterceptor(jwtManager *auth.JWTManager) grpc.UnaryServerInterceptor
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (interface{}, error) {
-		logger.Logger.Infof("Unary interceptor: %s", info.FullMethod)
-		
 		if !isProtectedMethod(info.FullMethod) {
 			return handler(ctx, req)
 		}
 
-		// Извлекаем и валидируем токен
 		ctx, err := validateAndAddUserContext(ctx, jwtManager)
 		if err != nil {
 			return nil, err
@@ -51,19 +47,15 @@ func NewAuthStreamInterceptor(jwtManager *auth.JWTManager) grpc.StreamServerInte
 		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
 	) error {
-		logger.Logger.Infof("Stream interceptor: %s", info.FullMethod)
-		
 		if !isProtectedMethod(info.FullMethod) {
 			return handler(srv, ss)
 		}
 
-		// Извлекаем и валидируем токен из контекста стрима
 		ctx, err := validateAndAddUserContext(ss.Context(), jwtManager)
 		if err != nil {
 			return err
 		}
 
-		// Создаем wrapper для стрима с новым контекстом
 		wrappedStream := &wrappedServerStream{
 			ServerStream: ss,
 			ctx:          ctx,
@@ -75,21 +67,17 @@ func NewAuthStreamInterceptor(jwtManager *auth.JWTManager) grpc.StreamServerInte
 
 // validateAndAddUserContext валидирует токен и добавляет user context
 func validateAndAddUserContext(ctx context.Context, jwtManager *auth.JWTManager) (context.Context, error) {
-	// Извлекаем токен
 	token, err := extractToken(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Валидируем токен
 	claims, err := jwtManager.ValidateToken(token)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
 	}
 
-	// Добавляем claims в контекст
 	ctx = auth.WithUserContext(ctx, claims)
-	logger.Logger.Infof("Authenticated user: %s", claims.UserID)
 
 	return ctx, nil
 }

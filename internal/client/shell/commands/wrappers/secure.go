@@ -23,16 +23,13 @@ func NewSecureCommandWrapper(cmd types.Command, session *crypto.Session, unlockF
 }
 
 func (w *SecureCommandWrapper) Execute(args []string) error {
-    // Если команда не требует разблокировки - выполняем сразу
     if !w.Command.RequiresUnlock() {
         return w.Command.Execute(args)
     }
     
-    // Проверяем, разблокировано ли хранилище
     if !w.session.IsUnlocked() {
         fmt.Println("\n🔒 Storage is locked. Master password required.")
         
-        // Запрашиваем мастер-пароль
         if err := w.unlockFunc(); err != nil {
             return fmt.Errorf("unlock failed: %w", err)
         }
@@ -40,9 +37,7 @@ func (w *SecureCommandWrapper) Execute(args []string) error {
         fmt.Println("✅ Storage unlocked successfully!")
     }
     
-    // Обновляем время активности
     w.session.Touch()
     
-    // Выполняем команду
     return w.Command.Execute(args)
 }

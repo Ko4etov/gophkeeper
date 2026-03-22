@@ -42,7 +42,6 @@ func New(
 		buildInfo: buildInfo,
 	}
 
-	// Создаем readline
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:            s.getPrompt(),
 		HistoryFile:       cfg.HistoryFile,
@@ -57,7 +56,6 @@ func New(
 
 	s.reader = rl
 
-	// Создаем реестр команд
 	s.registry = commands.NewRegistry(
 		dataService,
 		authService,
@@ -109,7 +107,6 @@ func (s *Shell) Run() error {
 			continue
 		}
 
-		// Разбираем команду
 		parts := parseLine(line)
 		if len(parts) == 0 {
 			continue
@@ -118,19 +115,16 @@ func (s *Shell) Run() error {
 		cmdName := parts[0]
 		args := parts[1:]
 
-		// Ищем команду в реестре
 		cmd := s.registry.Get(cmdName)
 		if cmd == nil {
 			s.printf("Unknown command: %s (type 'help')\n", cmdName)
 			continue
 		}
 
-		// Выполняем команду
 		if err := cmd.Execute(args); err != nil {
 			s.printf("Error: %v\n", err)
 		}
 
-		// Обновляем приглашение (на случай, если пользователь изменился)
 		s.reader.SetPrompt(s.getPrompt())
 	}
 

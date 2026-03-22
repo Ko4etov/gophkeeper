@@ -3,8 +3,6 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"time"
 
 	authproto "github.com/Ko4etov/gophkeeper/internal/proto/auth"
@@ -29,8 +27,6 @@ func NewService(storage *storage.Storage, jwtManager *auth.JWTManager) *Service 
 }
 
 func (s *Service) Register(ctx context.Context, req *authproto.RegisterRequest) (*authproto.RegisterResponse, error) {
-
-    // Проверяем, существует ли пользователь
     existing, err := s.storage.GetUserByEmail(ctx, req.Email)
     if err != nil {
         return nil, status.Errorf(codes.Internal, "database error: %v", err)
@@ -39,7 +35,6 @@ func (s *Service) Register(ctx context.Context, req *authproto.RegisterRequest) 
         return nil, status.Error(codes.AlreadyExists, "user already exists")
     }
 
-    // Создаем пользователя
     user, err := s.storage.CreateUser(ctx, req.Email, req.Password)
     if err != nil {
         return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
@@ -52,7 +47,6 @@ func (s *Service) Register(ctx context.Context, req *authproto.RegisterRequest) 
 }
 
 func (s *Service) Login(ctx context.Context, req *authproto.LoginRequest) (*authproto.LoginResponse, error) {
-    // Получаем пользователя
     user, err := s.storage.GetUserByEmail(ctx, req.Email)
     if err != nil {
         return nil, status.Errorf(codes.Internal, "database error: %v", err)
@@ -61,12 +55,10 @@ func (s *Service) Login(ctx context.Context, req *authproto.LoginRequest) (*auth
         return nil, status.Error(codes.NotFound, "user not found")
     }
 
-    // Проверяем пароль
     if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
         return nil, status.Error(codes.Unauthenticated, "invalid credentials")
     }
 
-    // Генерируем токены
     accessToken, err := s.jwtManager.GenerateAccessToken(user.ID, user.Email)
     if err != nil {
         return nil, status.Errorf(codes.Internal, "failed to generate access token: %v", err)
@@ -77,7 +69,6 @@ func (s *Service) Login(ctx context.Context, req *authproto.LoginRequest) (*auth
         return nil, status.Errorf(codes.Internal, "failed to generate refresh token: %v", err)
     }
 
-    // Сохраняем refresh token в БД
     err = s.storage.CreateRefreshToken(ctx, user.ID, refreshToken, time.Now().Add(s.jwtManager.RefreshTTL))
     if err != nil {
         return nil, status.Errorf(codes.Internal, "failed to save refresh token: %v", err)
@@ -93,13 +84,11 @@ func (s *Service) Login(ctx context.Context, req *authproto.LoginRequest) (*auth
 }
 
 func (s *Service) RefreshToken(ctx context.Context, req *authproto.RefreshTokenRequest) (*authproto.RefreshTokenResponse, error) {
-    // Валидируем refresh token
     claims, err := s.jwtManager.ValidateToken(req.RefreshToken)
     if err != nil {
         return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
     }
 
-    // Получаем пользователя
     user, err := s.storage.GetUserByID(ctx, claims.Subject)
     if err != nil {
         return nil, status.Errorf(codes.Internal, "database error: %v", err)
@@ -108,7 +97,6 @@ func (s *Service) RefreshToken(ctx context.Context, req *authproto.RefreshTokenR
         return nil, status.Error(codes.NotFound, "user not found")
     }
 
-    // Генерируем новые токены
     accessToken, err := s.jwtManager.GenerateAccessToken(user.ID, user.Email)
     if err != nil {
         return nil, status.Errorf(codes.Internal, "failed to generate access token: %v", err)
@@ -119,7 +107,6 @@ func (s *Service) RefreshToken(ctx context.Context, req *authproto.RefreshTokenR
         return nil, status.Errorf(codes.Internal, "failed to generate refresh token: %v", err)
     }
 
-    // Сохраняем новый refresh token
     err = s.storage.CreateRefreshToken(ctx, user.ID, refreshToken, time.Now().Add(s.jwtManager.RefreshTTL))
     if err != nil {
         return nil, status.Errorf(codes.Internal, "failed to save refresh token: %v", err)
@@ -133,7 +120,6 @@ func (s *Service) RefreshToken(ctx context.Context, req *authproto.RefreshTokenR
 }
 
 func (s *Service) Logout(ctx context.Context, req *authproto.LogoutRequest) (*authproto.LogoutResponse, error) {
-    // Валидируем токен
     claims, err := s.jwtManager.ValidateToken(req.AccessToken)
     if err != nil {
         return &authproto.LogoutResponse{Success: false}, nil
@@ -159,10 +145,4 @@ func (s *Service) ValidateToken(ctx context.Context, req *authproto.ValidateToke
         UserId: claims.UserID,
         Email:  claims.Email,
     }, nil
-}
-
-func generateRandomToken() string {
-    b := make([]byte, 32)
-    rand.Read(b)
-    return hex.EncodeToString(b)
 }

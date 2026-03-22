@@ -25,5 +25,5 @@ func NewExitCommand(ctx *types.CommandContext) *ExitCommand {
 func (c *ExitCommand) Execute(args []string) error {
     c.BaseCommand.Printf("👋 Goodbye!\n")
     os.Exit(0)
-    return nil // никогда не выполнится
+    return nil
 }

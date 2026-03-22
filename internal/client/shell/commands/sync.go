@@ -26,7 +26,6 @@ func NewSyncCommand(ctx *types.CommandContext) *SyncCommand {
 
 // Execute запускает процесс синхронизации.
 func (c *SyncCommand) Execute(args []string) error {
-    // Проверка авторизации
     if err := c.BaseCommand.CheckLoggedIn(); err != nil {
         return err
     }

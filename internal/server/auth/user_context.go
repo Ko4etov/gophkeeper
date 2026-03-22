@@ -2,8 +2,6 @@ package auth
 
 import (
 	"context"
-
-	"github.com/Ko4etov/gophkeeper/internal/server/service/logger"
 )
 
 // Определяем пользовательский тип для ключей (предотвращает коллизии)
@@ -22,8 +20,6 @@ const (
 
 // WithUserContext добавляет данные пользователя в контекст
 func WithUserContext(ctx context.Context, claims *Claims) context.Context {
-    logger.Logger.Info("set user in context")
-    logger.Logger.Infof("%v", claims)
     ctx = context.WithValue(ctx, userIDKey, claims.UserID)
     ctx = context.WithValue(ctx, emailKey, claims.Email)
     ctx = context.WithValue(ctx, claimsKey, claims)
@@ -32,7 +28,6 @@ func WithUserContext(ctx context.Context, claims *Claims) context.Context {
 
 // GetUserID извлекает user_id из контекста
 func GetUserID(ctx context.Context) (string, bool) {
-    logger.Logger.Info("get user id from context")
     val := ctx.Value(userIDKey)
     if val == nil {
         return "", false
@@ -59,13 +54,4 @@ func GetClaims(ctx context.Context) (*Claims, bool) {
     }
     claims, ok := val.(*Claims)
     return claims, ok
-}
-
-// MustGetUserID возвращает user_id или паникует (для случаев, где он обязан быть)
-func MustGetUserID(ctx context.Context) string {
-    userID, ok := GetUserID(ctx)
-    if !ok {
-        panic("user_id not found in context")
-    }
-    return userID
 }

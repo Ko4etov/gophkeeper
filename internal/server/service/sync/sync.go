@@ -74,7 +74,6 @@ func (s *SyncService) Sync(stream syncproto.SyncService_SyncServer) error {
 		}
 
 		if !isTsZero(clientMeta.DeletedAt) {
-			// Клиент пометил как удаленную
 			if err := s.storage.DeleteRecord(ctx, userID, id); err != nil {
 				logger.Logger.Errorf("Failed to delete record %s: %v", id, err)
 			} else {
