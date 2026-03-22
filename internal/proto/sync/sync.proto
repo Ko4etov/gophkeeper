@@ -1,0 +1,125 @@
+// proto/sync/sync.proto
+syntax = "proto3";
+
+package sync;
+
+option go_package = "github.com/Ko4etov/gophkeeper/internal/proto/sync";
+
+import "google/protobuf/timestamp.proto";
+
+service SyncService {
+    // Основной метод синхронизации (двунаправленный стрим)
+    rpc Sync(stream SyncRequest) returns (stream SyncResponse);
+}
+
+// ==================== ОСНОВНЫЕ ТИПЫ ====================
+
+// Entry - полная запись (с данными)
+message Entry {
+    string id = 1;
+    string user_id = 2;
+    string name = 3;
+    repeated string tags = 4;
+    string data_type = 5; // "login_password", "text", "binary", "bank_card"
+    
+    google.protobuf.Timestamp created_at = 6;
+    google.protobuf.Timestamp updated_at = 7;
+    int32 version = 8;
+    
+    // Данные в зависимости от типа (oneof)
+    oneof data {
+        LoginPasswordData login_data = 9;
+        TextData text_data = 10;
+        BinaryData binary_data = 11;
+        BankCardData card_data = 12;
+    }
+}
+
+// EntryMeta - метаданные записи (только для сравнения)
+message EntryMeta {
+    string id = 1;
+    google.protobuf.Timestamp updated_at = 2;
+    google.protobuf.Timestamp deleted_at = 3;
+    google.protobuf.Timestamp synced_at = 4;
+    int32 version = 5;
+}
+
+// ==================== ТИПЫ ДАННЫХ ====================
+
+// LoginPasswordData - данные логина/пароля
+message LoginPasswordData {
+    string login = 1;
+    string password = 2; // зашифровано
+    string url = 3;
+    string notes = 4;
+}
+
+// TextData - текстовые данные
+message TextData {
+    string content = 1; // зашифровано
+    string format = 2; // "plain", "markdown", "html"
+}
+
+// BinaryData - бинарные данные
+message BinaryData {
+    string filename = 1;
+    int64 size = 2;
+    string mime_type = 3;
+    bytes content = 4; // зашифровано
+    string checksum = 5;
+}
+
+// BankCardData - данные банковской карты
+message BankCardData {
+    string card_number = 1; // зашифровано
+    string card_holder = 2;
+    int32 expiry_month = 3;
+    int32 expiry_year = 4;
+    string cvv = 5; // зашифровано
+    string card_type = 6;
+    string bank_name = 7;
+}
+
+// ==================== ЗАПРОСЫ (клиент -> сервер) ====================
+
+// SyncRequest - запрос на синхронизацию
+message SyncRequest {
+    oneof payload {
+        ClientSnapshot snapshot = 1;      // первый запрос (метаданные всех записей)
+        Entry entry = 2;                  // отправка полной записи (для need_from_client)
+        Ack ack = 3;                      // подтверждение получения инструкций
+    }
+}
+
+// ClientSnapshot - слепок состояния клиента (первый запрос)
+message ClientSnapshot {
+    string client_id = 1;
+    repeated EntryMeta metas = 2; // метаданные ВСЕХ записей клиента
+}
+
+// Ack - подтверждение получения инструкций
+message Ack {
+    bool ready = 1; // подтверждение готовности получить записи
+}
+
+// SyncResponse - ответ на синхронизацию
+message SyncResponse {
+    oneof payload {
+        SyncInstructions instructions = 1;   // инструкции для клиента
+        Entry entry = 2;                     // потоковая передача записи (для need_download)
+        SyncComplete complete = 3;           // завершение синхронизации
+    }
+}
+
+// SyncInstructions - инструкции для клиента (первый ответ)
+message SyncInstructions {
+    repeated string need_download = 1;   // ID записей, которые нужно скачать (сервер новее или нет у клиента)
+    repeated string need_delete = 2;     // ID записей, которые нужно удалить (нет на сервере)
+    repeated string need_from_client = 3; // ID записей, которые клиент должен отправить (клиент новее или нет на сервере)
+}
+
+// SyncComplete - завершение синхронизации
+message SyncComplete {
+    int32 synced_count = 1;    // количество синхронизированных записей
+    int64 sync_version = 2;    // версия синхронизации (для будущих оптимизаций)
+}
