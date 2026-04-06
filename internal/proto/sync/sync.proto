@@ -12,8 +12,6 @@ service SyncService {
     rpc Sync(stream SyncRequest) returns (stream SyncResponse);
 }
 
-// ==================== ОСНОВНЫЕ ТИПЫ ====================
-
 // Entry - полная запись (с данными)
 message Entry {
     string id = 1;
@@ -26,13 +24,7 @@ message Entry {
     google.protobuf.Timestamp updated_at = 7;
     int32 version = 8;
     
-    // Данные в зависимости от типа (oneof)
-    oneof data {
-        LoginPasswordData login_data = 9;
-        TextData text_data = 10;
-        BinaryData binary_data = 11;
-        BankCardData card_data = 12;
-    }
+    string encrypted_data = 9;
 }
 
 // EntryMeta - метаданные записи (только для сравнения)
@@ -42,45 +34,8 @@ message EntryMeta {
     google.protobuf.Timestamp deleted_at = 3;
     google.protobuf.Timestamp synced_at = 4;
     int32 version = 5;
+    string checksum = 6;
 }
-
-// ==================== ТИПЫ ДАННЫХ ====================
-
-// LoginPasswordData - данные логина/пароля
-message LoginPasswordData {
-    string login = 1;
-    string password = 2; // зашифровано
-    string url = 3;
-    string notes = 4;
-}
-
-// TextData - текстовые данные
-message TextData {
-    string content = 1; // зашифровано
-    string format = 2; // "plain", "markdown", "html"
-}
-
-// BinaryData - бинарные данные
-message BinaryData {
-    string filename = 1;
-    int64 size = 2;
-    string mime_type = 3;
-    bytes content = 4; // зашифровано
-    string checksum = 5;
-}
-
-// BankCardData - данные банковской карты
-message BankCardData {
-    string card_number = 1; // зашифровано
-    string card_holder = 2;
-    int32 expiry_month = 3;
-    int32 expiry_year = 4;
-    string cvv = 5; // зашифровано
-    string card_type = 6;
-    string bank_name = 7;
-}
-
-// ==================== ЗАПРОСЫ (клиент -> сервер) ====================
 
 // SyncRequest - запрос на синхронизацию
 message SyncRequest {
@@ -99,7 +54,7 @@ message ClientSnapshot {
 
 // Ack - подтверждение получения инструкций
 message Ack {
-    bool ready = 1; // подтверждение готовности получить записи
+    bool ready = 1;
 }
 
 // SyncResponse - ответ на синхронизацию
@@ -113,13 +68,13 @@ message SyncResponse {
 
 // SyncInstructions - инструкции для клиента (первый ответ)
 message SyncInstructions {
-    repeated string need_download = 1;   // ID записей, которые нужно скачать (сервер новее или нет у клиента)
-    repeated string need_delete = 2;     // ID записей, которые нужно удалить (нет на сервере)
-    repeated string need_from_client = 3; // ID записей, которые клиент должен отправить (клиент новее или нет на сервере)
+    repeated string need_download = 1;    // ID записей, которые нужно скачать
+    repeated string need_delete = 2;      // ID записей, которые нужно удалить
+    repeated string need_from_client = 3; // ID записей, которые клиент должен отправить
 }
 
 // SyncComplete - завершение синхронизации
 message SyncComplete {
-    int32 synced_count = 1;    // количество синхронизированных записей
-    int64 sync_version = 2;    // версия синхронизации (для будущих оптимизаций)
+    int32 synced_count = 1;
+    int64 sync_version = 2;
 }

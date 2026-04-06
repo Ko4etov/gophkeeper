@@ -24,8 +24,9 @@ vendor/
 .idea
 .vscode
 
-metrics.json
-metrics_log.json
 .env
 *.pem
-config.json
+.env
+*.key
+data/crypto/
+logs/

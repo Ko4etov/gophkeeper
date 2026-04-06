@@ -2,8 +2,8 @@
 package commands
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 
@@ -66,6 +66,7 @@ func NewRegistry(
 	r.Register(NewRegisterCommand(ctx))
 	r.Register(NewLoginCommand(ctx))
 
+	// Защищенные команды
 	r.Register(wrappers.NewSecureCommandWrapper(NewListCommand(ctx), session, unlockFunc))
 	r.Register(wrappers.NewSecureCommandWrapper(NewGetCommand(ctx), session, unlockFunc))
 	r.Register(wrappers.NewSecureCommandWrapper(NewSyncCommand(ctx), session, unlockFunc))
@@ -78,8 +79,13 @@ func NewRegistry(
 	return r
 }
 
+// promptUnlock запрашивает мастер-пароль и разблокирует сессию
 func (r *Registry) promptUnlock() error {
 	user := r.ctx.AuthService.GetUser()
+	if user == nil {
+		return fmt.Errorf("not logged in")
+	}
+
 	fmt.Print("🔒 Master password: ")
 	passwordBytes, err := readline.Password("")
 	if err != nil {
@@ -87,15 +93,30 @@ func (r *Registry) promptUnlock() error {
 	}
 	fmt.Println()
 
-	password := string(passwordBytes)
+	masterPassword := string(passwordBytes)
 
-	// Получаем соль из хранилища
-	salt, err := r.ctx.DataService.GetSalt(user.Email)
-	if err != nil {
-		return fmt.Errorf("failed to get salt: %w", err)
+	localSalt, err := r.ctx.DataService.GetLocalSalt(user.Email)
+	if err == nil && localSalt != nil {
+		return r.session.Unlock(masterPassword, localSalt)
 	}
 
-	return r.session.Unlock(password, salt)
+	fmt.Println("🌐 Fetching salt from server...")
+
+	ctx := context.Background()
+	remoteSalt, err := r.ctx.DataService.GetRemoteSalt(ctx, user.Token)
+	if err != nil {
+		return fmt.Errorf("failed to get salt from server: %w", err)
+	}
+
+	// 3. Сохраняем соль локально для будущих офлайн-сессий
+	if err := r.ctx.DataService.SaveLocalSalt(remoteSalt, user.Email); err != nil {
+		fmt.Printf("⚠️ Warning: failed to save salt locally: %v\n", err)
+	} else {
+		fmt.Println("💾 Salt saved locally for offline access")
+	}
+
+	// 4. Разблокируем сессию
+	return r.session.Unlock(masterPassword, remoteSalt)
 }
 
 // Register регистрирует команду
@@ -113,7 +134,6 @@ func (r *Registry) Get(name string) types.Command {
 
 // GetAll возвращает все команды
 func (r *Registry) GetAll() []types.Command {
-	log.Printf("%v", r)
 	var cmds []types.Command
 	seen := make(map[string]bool)
 
@@ -137,14 +157,12 @@ func (r *Registry) GetCompleter() func(string) []string {
 	return func(line string) []string {
 		var completions []string
 
-		// Получаем текущее слово
 		words := strings.Fields(line)
 		current := ""
 		if len(words) > 0 {
 			current = words[len(words)-1]
 		}
 
-		// Если это первое слово - дополняем команды
 		if len(words) <= 1 {
 			for _, cmd := range r.GetAll() {
 				if strings.HasPrefix(cmd.Name(), current) {
@@ -154,7 +172,6 @@ func (r *Registry) GetCompleter() func(string) []string {
 			return completions
 		}
 
-		// Если это не первое слово - ищем подкоманды
 		rootCmd := r.Get(words[0])
 		if parent, ok := rootCmd.(types.ParentCommand); ok {
 			for _, sub := range parent.SubCommands() {

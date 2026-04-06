@@ -15,6 +15,24 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type StorageInterface interface {
+	// User methods
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	GetUserByID(ctx context.Context, id string) (*User, error)
+	CreateUser(ctx context.Context, email, password string) (*User, error)
+	
+	// Refresh token methods
+	CreateRefreshToken(ctx context.Context, userID, token string, expiresAt time.Time) error
+	RevokeAllUserTokens(ctx context.Context, userID string) error
+	
+	// Record methods
+	GetAllRecordsMeta(ctx context.Context, userID string) ([]*RecordMeta, error)
+	GetFullRecordsByIDs(ctx context.Context, userID string, ids []string) ([]*Record, error)
+	CreateRecord(ctx context.Context, userID string, record *Record) error
+	UpdateRecord(ctx context.Context, userID string, record *Record) error
+	DeleteRecord(ctx context.Context, userID string, clientID string) error
+}
+
 type User struct {
 	ID           string
 	Email        string
@@ -95,6 +113,10 @@ func (s *Storage) GetAllRecordsMeta(ctx context.Context, userID string) ([]*Reco
 		metas = append(metas, &meta)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return metas, nil
 }
 
@@ -145,6 +167,10 @@ func (s *Storage) GetFullRecordsByIDs(ctx context.Context, userID string, ids []
 		}
 
 		records = append(records, &record)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return records, nil
@@ -238,7 +264,7 @@ func (s *Storage) GetUserByEmail(ctx context.Context, email string) (*User, erro
 		&user.UpdatedAt,
 	)
 
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -261,6 +287,9 @@ func (s *Storage) GetUserByID(ctx context.Context, id string) (*User, error) {
 		&user.UpdatedAt,
 	)
 
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -299,10 +328,11 @@ func (s *Storage) ValidateRefreshToken(ctx context.Context, token string) (strin
 		&userID, &expiresAt, &revokedAt,
 	)
 
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("token not found: %w", err)
+	}
+
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", fmt.Errorf("token not found: %w", err)
-		}
 		return "", fmt.Errorf("database error: %w", err)
 	}
 
@@ -330,4 +360,36 @@ func (s *Storage) RevokeAllUserTokens(ctx context.Context, userID string) error 
 	query := `UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL`
 	_, err := s.db.Exec(ctx, query, userID)
 	return err
+}
+
+func (s *Storage) GetUserSalt(ctx context.Context, userID string) (string, error) {
+	var saltBase64 string
+	query := `SELECT salt FROM user_salt WHERE user_id = $1`
+	
+	err := s.db.QueryRow(ctx, query, userID).Scan(&saltBase64)
+	if err == pgx.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to get salt: %w", err)
+	}
+	
+	return saltBase64, nil
+}
+
+// SaveUserSalt сохраняет соль пользователя.
+func (s *Storage) SaveUserSalt(ctx context.Context, userID, saltBase64 string) error {
+	query := `
+		INSERT INTO user_salt (user_id, salt, created_at, updated_at)
+		VALUES ($1, $2, NOW(), NOW())
+		ON CONFLICT (user_id) DO UPDATE
+		SET salt = EXCLUDED.salt, updated_at = NOW()
+	`
+	
+	_, err := s.db.Exec(ctx, query, userID, saltBase64)
+	if err != nil {
+		return fmt.Errorf("failed to save salt: %w", err)
+	}
+	
+	return nil
 }

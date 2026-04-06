@@ -2,12 +2,15 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/Ko4etov/gophkeeper/internal/client/crypto"
 	"github.com/Ko4etov/gophkeeper/internal/client/shell/commands/types"
+	"github.com/Ko4etov/gophkeeper/internal/common/auth"
+	"github.com/Ko4etov/gophkeeper/internal/models"
 )
 
 type LoginCommand struct {
@@ -68,36 +71,66 @@ func (c *LoginCommand) Execute(args []string) error {
     
     c.BaseCommand.Printf("✅ Welcome, %s!\n", user.Email)
     
-    salt, err := c.BaseCommand.Context.DataService.GetSalt(email)
-    if err != nil {
-        c.BaseCommand.Printf("❌ Failed to check local storage: %v\n", err)
-        return nil
-    }
-    
-    if salt == nil {
-        if err := c.setupMasterPassword(email); err != nil {
-            return err
-        }
-    } else {
-        if err := c.unlockStorage(email, salt); err != nil {
-            return err
-        }
+    if err := c.handleSalt(user); err != nil {
+        return err
     }
     
     c.BaseCommand.Context.SyncManager.Start(5 * time.Minute)
+    c.BaseCommand.Printf("🔄 Sync started (every 5 minutes)\n")
     
     return nil
 }
 
-// setupMasterPassword настраивает мастер-пароль при первом входе
-func (c *LoginCommand) setupMasterPassword(email string) error {
+// handleSalt обрабатывает получение/сохранение соли (гибридный подход)
+func (c *LoginCommand) handleSalt(user *models.User) error {
+    ctx := context.Background()
+    
+    // 1. Пытаемся получить соль из локального хранилища
+    localSalt, err := c.BaseCommand.Context.DataService.GetLocalSalt(user.Email)
+    
+    // 2. Если соль есть локально — используем её (офлайн-режим)
+    if err == nil && localSalt != nil {
+        c.BaseCommand.Printf("🔓 Using local salt (offline mode available)\n")
+        return c.unlockStorage(user.Email, localSalt)
+    }
+    
+    // 3. Соли нет локально — запрашиваем с сервера
+    c.BaseCommand.Printf("🌐 No local salt found, fetching from server...\n")
+    
+    remoteSalt, err := c.BaseCommand.Context.DataService.GetRemoteSalt(ctx, user.Token)
+    
+    // 4. Если на сервере тоже нет соли — это первый вход, создаем новую
+    if err != nil {
+        c.BaseCommand.Printf("📝 No salt found on server, setting up master password...\n")
+        return c.setupMasterPassword(user)
+    }
+    
+    // 5. Сохраняем соль локально для будущих офлайн-сессий
+    if err := c.BaseCommand.Context.DataService.SaveLocalSalt(remoteSalt, user.Email); err != nil {
+        c.BaseCommand.Printf("⚠️ Warning: failed to save salt locally: %v\n", err)
+    } else {
+        c.BaseCommand.Printf("💾 Salt saved locally for offline access\n")
+    }
+    
+    // 6. Разблокируем хранилище
+    return c.unlockStorage(user.Email, remoteSalt)
+}
+
+// setupMasterPassword настраивает мастер-пароль при первом входе (новый пользователь)
+func (c *LoginCommand) setupMasterPassword(user *models.User) error {
     fmt.Println("\n🔐 First time login - setting up local encryption...")
     fmt.Println("⚠️  This master password will encrypt ALL your data.")
-    fmt.Println("⚠️  It CANNOT be recovered if lost. Store it safely!\n")
+    fmt.Println("⚠️  It CANNOT be recovered if lost. Store it safely!")
     
-    // Запрашиваем мастер-пароль
+    ctx := context.Background()
+    
     masterPassword, err := c.BaseCommand.PromptPassword("Create master password: ")
     if err != nil {
+        return err
+    }
+    
+    if err := auth.ValidatePasswordStrength(masterPassword); err != nil {
+        c.BaseCommand.Printf("❌ %v\n", err)
         return err
     }
     
@@ -118,9 +151,15 @@ func (c *LoginCommand) setupMasterPassword(email string) error {
         return nil
     }
     
-    // Сохраняем соль
-    if err := c.BaseCommand.Context.DataService.SaveSalt(salt, email); err != nil {
-        c.BaseCommand.Printf("❌ Failed to save encryption salt: %v\n", err)
+    if err := c.BaseCommand.Context.DataService.SaveRemoteSalt(ctx, user.Token, salt); err != nil {
+        c.BaseCommand.Printf("⚠️ Warning: failed to save salt on server: %v\n", err)
+        c.BaseCommand.Printf("   Other devices won't be able to sync.\n")
+    } else {
+        c.BaseCommand.Printf("☁️ Salt saved on server for other devices\n")
+    }
+    
+    if err := c.BaseCommand.Context.DataService.SaveLocalSalt(salt, user.Email); err != nil {
+        c.BaseCommand.Printf("❌ Failed to save salt locally: %v\n", err)
         return nil
     }
     
@@ -130,6 +169,7 @@ func (c *LoginCommand) setupMasterPassword(email string) error {
     }
     
     fmt.Println("\n✅ Local storage initialized and unlocked!")
+    fmt.Println("💡 You can now work offline - salt is stored locally.")
     fmt.Println("\n💡 Next steps:")
     fmt.Println("   • Use 'add login' to store your first password")
     fmt.Println("   • Use 'sync' to synchronize with server")

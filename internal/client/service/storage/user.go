@@ -4,12 +4,13 @@ package storage
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/Ko4etov/gophkeeper/internal/models"
 	"go.etcd.io/bbolt"
 )
 
-// SaveToken сохраняет пользователя
+// SaveUser сохраняет пользователя
 func (s *Storage) SaveUser(user *models.User) error {
     return s.db.Update(func(tx *bbolt.Tx) error {
         userBucket := tx.Bucket(getUserBucketName(user.Email))
@@ -17,18 +18,21 @@ func (s *Storage) SaveUser(user *models.User) error {
             return errors.New("user not found")
         }
 
-        metaBucket := userBucket.Bucket(bucketUserMeta)
+        metaBucket, err := userBucket.CreateBucketIfNotExists(bucketUserMeta)
+        if err != nil {
+            return fmt.Errorf("failed to create meta bucket: %w", err)
+        }
 
         data, err := json.Marshal(user)
         if err != nil {
             return err
         }
 
-        return metaBucket.Put(bucketUserMeta, data)
+        return metaBucket.Put(bucketUserData, data)
     })
 }
 
-// GetToken возвращает сохраненный токен
+// GetUser возвращает сохраненного пользователя
 func (s *Storage) GetUser(email string) (*models.User, error) {
     var user models.User
 
@@ -39,10 +43,13 @@ func (s *Storage) GetUser(email string) (*models.User, error) {
         }
 
         metaBucket := userBucket.Bucket(bucketUserMeta)
-
-        data := metaBucket.Get(bucketUserMeta)
         if metaBucket == nil {
             return errors.New("meta bucket not found")
+        }
+
+        data := metaBucket.Get(bucketUserData)
+        if data == nil {
+            return errors.New("user data not found")
         }
 
         return json.Unmarshal(data, &user)

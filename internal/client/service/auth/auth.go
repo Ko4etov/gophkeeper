@@ -4,18 +4,20 @@ package auth
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
-	grpcclient "github.com/Ko4etov/gophkeeper/internal/client/grpc_client"
 	"github.com/Ko4etov/gophkeeper/internal/client/service/storage"
+	"github.com/Ko4etov/gophkeeper/internal/common/auth"
 	"github.com/Ko4etov/gophkeeper/internal/models"
+	protoauth "github.com/Ko4etov/gophkeeper/internal/proto/auth"
 )
 
 // AuthService управляет аутентификацией пользователя и обновлением токенов.
 type AuthService struct {
 	user         *models.User          // текущий пользователь
-	grpcclient   *grpcclient.GrpcClient
+	grpcclient   GrpcClientInterface
 	storage      *storage.Storage
 	ctx          context.Context
 	cancel       context.CancelFunc
@@ -24,8 +26,14 @@ type AuthService struct {
 	refreshDone  chan struct{}          // канал для остановки таймера
 }
 
+type GrpcClientInterface interface {
+	Login(email, password string) (*protoauth.LoginResponse, error)
+	Register(email, password string) error
+	RefreshToken(accessToken, refreshToken string) (*protoauth.RefreshTokenResponse, error)
+}
+
 // NewAuthService создает новый сервис аутентификации.
-func NewAuthService(ctx context.Context, grpcclient *grpcclient.GrpcClient, storage *storage.Storage) (*AuthService, error) {
+func NewAuthService(ctx context.Context, grpcclient GrpcClientInterface, storage *storage.Storage) (*AuthService, error) {
 	serviceCtx, cancel := context.WithCancel(ctx)
 
 	return &AuthService{
@@ -59,15 +67,15 @@ func (a *AuthService) Login(email string, password string) (*models.User, error)
 		return nil, err
 	}
 
-	a.SetUser(&models.User{
+	user := &models.User{
 		ID:           resp.UserId,
 		Email:        resp.Email,
 		Token:        resp.AccessToken,
 		RefreshToken: resp.RefreshToken,
 		ExpiresAt:    time.Now().Add(time.Duration(resp.ExpiresIn) * time.Second),
-	})
+	}
 
-	user := a.GetUser()
+	a.SetUser(user)
 
 	if err := a.storage.EnsureUserBuckets(user.Email); err != nil {
 		return nil, err
@@ -79,13 +87,13 @@ func (a *AuthService) Login(email string, password string) (*models.User, error)
 
 	a.StartAccesTokenRefreshing()
 
-	return a.user, nil
+	return user, nil
 }
 
 // Register создает нового пользователя на сервере.
 func (a *AuthService) Register(email, password string) error {
-	if a.user != nil {
-		return fmt.Errorf("already logged in as %s", a.user.Email)
+	if user := a.GetUser(); user != nil {
+		return fmt.Errorf("already logged in as %s", user.Email)
 	}
 
 	if email == "" {
@@ -96,8 +104,8 @@ func (a *AuthService) Register(email, password string) error {
 		return fmt.Errorf("password cannot be empty")
 	}
 
-	if len(password) < 8 {
-		return fmt.Errorf("password must be at least 8 characters")
+	if err := auth.ValidatePasswordStrength(password); err != nil {
+		return fmt.Errorf("weak password: %v", err)
 	}
 
 	return a.grpcclient.Register(email, password)
@@ -107,36 +115,8 @@ func (a *AuthService) Register(email, password string) error {
 func (a *AuthService) StartAccesTokenRefreshing() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-
-	if a.user == nil {
-		return
-	}
-
-	a.stopRefreshTimer()
-
-	timeUntilExpiry := time.Until(a.user.ExpiresAt)
-
-	if timeUntilExpiry <= 0 {
-		a.user = nil
-		return
-	}
-
-	// Обновляем за 1 минуту до истечения
-	refreshIn := timeUntilExpiry - 1*time.Minute
-	if refreshIn < 0 {
-		go a.refreshToken()
-		return
-	}
-
-	a.refreshDone = make(chan struct{})
-	a.refreshTimer = time.AfterFunc(refreshIn, func() {
-		select {
-		case <-a.refreshDone:
-			return
-		default:
-			a.refreshToken()
-		}
-	})
+	
+	a.scheduleRefreshLocked()
 }
 
 // refreshToken выполняет обновление токена.
@@ -152,7 +132,7 @@ func (a *AuthService) refreshToken() {
 
 	resp, err := a.grpcclient.RefreshToken(accessToken, refreshToken)
 	if err != nil {
-		fmt.Printf("Failed to refresh token: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to refresh token: %v\n", err)
 		a.mu.Lock()
 		a.user = nil
 		a.mu.Unlock()
@@ -160,32 +140,36 @@ func (a *AuthService) refreshToken() {
 	}
 
 	a.mu.Lock()
+	defer a.mu.Unlock()
+	
 	if a.user != nil {
 		a.user.Token = resp.AccessToken
 		a.user.RefreshToken = resp.RefreshToken
 		a.user.ExpiresAt = time.Now().Add(time.Duration(resp.ExpiresIn) * time.Second)
 	}
-	a.mu.Unlock()
-
-	a.scheduleNextRefresh()
+	
+	a.scheduleRefreshLocked()
 }
 
-// scheduleNextRefresh планирует следующее обновление токена.
-func (a *AuthService) scheduleNextRefresh() {
+// scheduleRefreshLocked планирует следующее обновление токена.
+func (a *AuthService) scheduleRefreshLocked() {
 	if a.user == nil {
 		return
 	}
 
-	timeUntilExpiry := time.Until(a.user.ExpiresAt)
-	refreshIn := timeUntilExpiry - 1*time.Minute
+	a.stopRefreshTimerLocked()
 
-	if refreshIn <= 0 {
-		go a.refreshToken()
+	timeUntilExpiry := time.Until(a.user.ExpiresAt)
+	if timeUntilExpiry <= 0 {
+		a.user = nil
 		return
 	}
 
-	if a.refreshTimer != nil {
-		a.refreshTimer.Stop()
+	// Обновляем за 1 минуту до истечения
+	refreshIn := timeUntilExpiry - 1*time.Minute
+	if refreshIn <= 0 {
+		go a.refreshToken()
+		return
 	}
 
 	a.refreshDone = make(chan struct{})
@@ -199,8 +183,8 @@ func (a *AuthService) scheduleNextRefresh() {
 	})
 }
 
-// stopRefreshTimer останавливает таймер обновления.
-func (a *AuthService) stopRefreshTimer() {
+// stopRefreshTimerLocked останавливает таймер обновления.
+func (a *AuthService) stopRefreshTimerLocked() {
 	if a.refreshTimer != nil {
 		a.refreshTimer.Stop()
 		a.refreshTimer = nil

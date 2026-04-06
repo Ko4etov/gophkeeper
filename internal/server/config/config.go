@@ -1,4 +1,4 @@
-// Package config предоставляет конфигурацию для сервера сбора метрик.
+// Package config предоставляет конфигурацию для сервера.
 package config
 
 import (
@@ -17,7 +17,6 @@ type ServerConfig struct {
 	ConnectionPool  *pgxpool.Pool // пул подключений к базе данных
 	HashKey         string        // ключ для хеширования
 	CryptoKey       string        // директория для сохранения профилей
-	UseGRPC         bool
 	GRPCAddress     string
 	JWTSecret       string
 	AccessTokenTTL  int
@@ -42,10 +41,8 @@ func New() (*ServerConfig, error) {
 		return nil, JWTSecretMissed
 	}
 
-	if serverParameters.UseGRPC {
-		if serverParameters.GRPCAddress == "" {
-			return nil, ErrGRPCAddressMissed
-		}
+	if serverParameters.GRPCAddress == "" {
+		return nil, ErrGRPCAddressMissed
 	}
 
 	if serverParameters.DBAddress == "" {
@@ -70,7 +67,6 @@ func New() (*ServerConfig, error) {
 		ConnectionPool:  pool,
 		HashKey:         serverParameters.HashKey,
 		CryptoKey:       serverParameters.CryptoKey,
-		UseGRPC:         serverParameters.UseGRPC,
 		GRPCAddress:     serverParameters.GRPCAddress,
 		AccessTokenTTL:  serverParameters.AccessTokenTTL,
 		RefreshTokenTTL: serverParameters.RefreshTokenTTL,

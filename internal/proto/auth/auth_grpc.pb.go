@@ -4,7 +4,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v6.33.4
-// source: internal/proto/auth.proto
+// source: internal/proto/auth/auth.proto
 
 package auth
 
@@ -27,6 +27,8 @@ const (
 	AuthService_RefreshToken_FullMethodName  = "/auth.AuthService/RefreshToken"
 	AuthService_Logout_FullMethodName        = "/auth.AuthService/Logout"
 	AuthService_ValidateToken_FullMethodName = "/auth.AuthService/ValidateToken"
+	AuthService_GetSalt_FullMethodName       = "/auth.AuthService/GetSalt"
+	AuthService_SaveSalt_FullMethodName      = "/auth.AuthService/SaveSalt"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -38,6 +40,8 @@ type AuthServiceClient interface {
 	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error)
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 	ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error)
+	GetSalt(ctx context.Context, in *GetSaltRequest, opts ...grpc.CallOption) (*GetSaltResponse, error)
+	SaveSalt(ctx context.Context, in *SaveSaltRequest, opts ...grpc.CallOption) (*SaveSaltResponse, error)
 }
 
 type authServiceClient struct {
@@ -98,6 +102,26 @@ func (c *authServiceClient) ValidateToken(ctx context.Context, in *ValidateToken
 	return out, nil
 }
 
+func (c *authServiceClient) GetSalt(ctx context.Context, in *GetSaltRequest, opts ...grpc.CallOption) (*GetSaltResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSaltResponse)
+	err := c.cc.Invoke(ctx, AuthService_GetSalt_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) SaveSalt(ctx context.Context, in *SaveSaltRequest, opts ...grpc.CallOption) (*SaveSaltResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveSaltResponse)
+	err := c.cc.Invoke(ctx, AuthService_SaveSalt_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -107,6 +131,8 @@ type AuthServiceServer interface {
 	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error)
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
 	ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error)
+	GetSalt(context.Context, *GetSaltRequest) (*GetSaltResponse, error)
+	SaveSalt(context.Context, *SaveSaltRequest) (*SaveSaltResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -131,6 +157,12 @@ func (UnimplementedAuthServiceServer) Logout(context.Context, *LogoutRequest) (*
 }
 func (UnimplementedAuthServiceServer) ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ValidateToken not implemented")
+}
+func (UnimplementedAuthServiceServer) GetSalt(context.Context, *GetSaltRequest) (*GetSaltResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSalt not implemented")
+}
+func (UnimplementedAuthServiceServer) SaveSalt(context.Context, *SaveSaltRequest) (*SaveSaltResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveSalt not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -243,6 +275,42 @@ func _AuthService_ValidateToken_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetSalt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSaltRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetSalt(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetSalt_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetSalt(ctx, req.(*GetSaltRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_SaveSalt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveSaltRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).SaveSalt(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_SaveSalt_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).SaveSalt(ctx, req.(*SaveSaltRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -270,7 +338,15 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ValidateToken",
 			Handler:    _AuthService_ValidateToken_Handler,
 		},
+		{
+			MethodName: "GetSalt",
+			Handler:    _AuthService_GetSalt_Handler,
+		},
+		{
+			MethodName: "SaveSalt",
+			Handler:    _AuthService_SaveSalt_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/proto/auth.proto",
+	Metadata: "internal/proto/auth/auth.proto",
 }

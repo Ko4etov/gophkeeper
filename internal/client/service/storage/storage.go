@@ -304,16 +304,10 @@ func (s *Storage) GetEntriesByIDs(email string, ids []string) ([]*models.DataEnt
 				return nil
 			}
 
-			var stored StoredEntry
-			if err := json.Unmarshal(v, &stored); err != nil {
-				return err
-			}
-
-			entry, err := s.entryFromStored(&stored)
+			entry, err := s.GetEntry(email, string(k))
 			if err != nil {
 				return err
 			}
-
 			entries = append(entries, entry)
 			return nil
 		})
@@ -363,40 +357,6 @@ func (s *Storage) GetEntriesMetaByIDs(email string, ids []string) ([]*models.Dat
 	return entriesMeta, err
 }
 
-func (s *Storage) entryFromStored(stored *StoredEntry) (*models.DataEntry, error) {
-	if stored == nil {
-		return nil, errors.New("stored entry is nil")
-	}
-
-	// Десериализуем Data в нужный тип в зависимости от DataType
-	var data interface{}
-	var err error
-
-	switch stored.Meta.DataType {
-	case models.TypeLoginPassword:
-		data, err = s.unmarshalLoginPassword(stored.Data)
-	case models.TypeText:
-		data, err = s.unmarshalText(stored.Data)
-	case models.TypeBankCard:
-		data, err = s.unmarshalBankCard(stored.Data)
-	default:
-		var raw map[string]interface{}
-		if err := json.Unmarshal(stored.Data, &raw); err != nil {
-			return nil, fmt.Errorf("unknown data type %s and not a valid JSON: %w", stored.Meta.DataType, err)
-		}
-		data = raw
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal data for type %s: %w", stored.Meta.DataType, err)
-	}
-
-	return &models.DataEntry{
-		Meta: stored.Meta,
-		Data: data,
-	}, nil
-}
-
 func (s *Storage) BatchDelete(email string, ids []string) error {
 	if len(ids) == 0 {
 		return nil
@@ -422,23 +382,60 @@ func (s *Storage) BatchDelete(email string, ids []string) error {
 	})
 }
 
-// unmarshalLoginPassword десериализует данные логина/пароля
-func (s *Storage) unmarshalLoginPassword(data json.RawMessage) (models.LoginPasswordData, error) {
-	var loginData models.LoginPasswordData
-	err := json.Unmarshal(data, &loginData)
-	return loginData, err
+func (s *Storage) GetEncryptedEntry(email string, id string) (string, error) {
+    var stored StoredEntry
+
+    err := s.db.View(func(tx *bbolt.Tx) error {
+        userBucket := tx.Bucket(getUserBucketName(email))
+        if userBucket == nil {
+            return errors.New("user not found")
+        }
+
+        dataBucket := userBucket.Bucket(bucketUserData)
+        if dataBucket == nil {
+            return errors.New("data bucket not found")
+        }
+
+        data := dataBucket.Get([]byte(id))
+        if data == nil {
+            return fmt.Errorf("entry %s not found", id)
+        }
+        return json.Unmarshal(data, &stored)
+    })
+    if err != nil {
+        return "", err
+    }
+
+    var encryptedStr string
+    if err := json.Unmarshal(stored.Data, &encryptedStr); err != nil {
+        return "", err
+    }
+
+    return encryptedStr, nil
 }
 
-// unmarshalText десериализует текстовые данные
-func (s *Storage) unmarshalText(data json.RawMessage) (models.TextData, error) {
-	var textData models.TextData
-	err := json.Unmarshal(data, &textData)
-	return textData, err
-}
+func (s *Storage) SaveEncryptedEntry(email string, entry *models.DataEntry, encryptedData string) error {
+    stored := StoredEntry{
+        Meta: entry.Meta,
+        Data: json.RawMessage(fmt.Sprintf(`"%s"`, encryptedData)),
+    }
 
-// unmarshalBankCard десериализует данные банковской карты
-func (s *Storage) unmarshalBankCard(data json.RawMessage) (models.BankCardData, error) {
-	var cardData models.BankCardData
-	err := json.Unmarshal(data, &cardData)
-	return cardData, err
+    storedJSON, err := json.Marshal(stored)
+    if err != nil {
+        return fmt.Errorf("failed to marshal stored entry: %w", err)
+    }
+
+    return s.db.Update(func(tx *bbolt.Tx) error {
+        userBucket, err := tx.CreateBucketIfNotExists(getUserBucketName(email))
+        if err != nil {
+            return err
+        }
+
+        dataBucket, err := userBucket.CreateBucketIfNotExists([]byte(bucketUserData))
+        if err != nil {
+            return err
+        }
+
+        return dataBucket.Put([]byte(entry.Meta.ID), storedJSON)
+    })
 }

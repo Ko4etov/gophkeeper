@@ -3,7 +3,7 @@ syntax = "proto3";
 
 package auth;
 
-option go_package = "github.com/Ko4etov/gophkeeper/internal/proto";
+option go_package = "github.com/Ko4etov/gophkeeper/internal/proto/auth";
 
 service AuthService {
     rpc Register(RegisterRequest) returns (RegisterResponse);
@@ -11,6 +11,22 @@ service AuthService {
     rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
     rpc Logout(LogoutRequest) returns (LogoutResponse);
     rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+    rpc GetSalt(GetSaltRequest) returns (GetSaltResponse);
+    rpc SaveSalt(SaveSaltRequest) returns (SaveSaltResponse);
+}
+
+message GetSaltRequest {}
+
+message GetSaltResponse {
+    string salt = 1;
+}
+
+message SaveSaltRequest {
+    string salt = 1;
+}
+
+message SaveSaltResponse {
+    bool success = 1;
 }
 
 message RegisterRequest {

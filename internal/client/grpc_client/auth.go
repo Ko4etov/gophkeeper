@@ -74,6 +74,51 @@ func (c *GrpcClient) RefreshToken(accessToken string, refreshToken string) (*aut
 	return resp, nil
 }
 
+// GetSalt получает соль пользователя с сервера.
+func (c *GrpcClient) GetSalt(ctx context.Context, token string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	authCtx := c.GetAuthContext(ctx, token)
+
+	resp, err := c.authClient.GetSalt(authCtx, &auth.GetSaltRequest{})
+	if err != nil {
+		return "", err
+	}
+
+	return resp.Salt, nil
+}
+
+// SaveSalt сохраняет соль пользователя на сервере.
+func (c *GrpcClient) SaveSalt(ctx context.Context, token string, saltBase64 string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	authCtx := c.GetAuthContext(ctx, token)
+
+	_, err := c.authClient.SaveSalt(authCtx, &auth.SaveSaltRequest{
+		Salt: saltBase64,
+	})
+	return err
+}
+
+// ValidateToken проверяет валидность токена.
+func (c *GrpcClient) ValidateToken(ctx context.Context, token string) (*auth.ValidateTokenResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	authCtx := c.GetAuthContext(ctx, token)
+
+	resp, err := c.authClient.ValidateToken(authCtx, &auth.ValidateTokenRequest{
+		AccessToken: token,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
 // GetAuthContext добавляет токен авторизации в контекст gRPC.
 func (c *GrpcClient) GetAuthContext(ctx context.Context, token string) context.Context {
 	md := metadata.New(map[string]string{

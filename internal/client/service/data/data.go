@@ -1,8 +1,9 @@
-// Package data предоставляет сервис для работы с данными пользователя.
+// internal/client/service/data/data.go
 package data
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -377,14 +378,38 @@ func (c *DataService) BatchDelete(email string, ids []string) error {
 	return c.storage.BatchDelete(email, ids)
 }
 
-// GetSalt возвращает соль для пользователя.
-func (s *DataService) GetSalt(currentUserEmail string) ([]byte, error) {
+// GetLocalSalt получает соль из локального хранилища.
+func (s *DataService) GetLocalSalt(currentUserEmail string) ([]byte, error) {
 	return s.storage.GetSalt(currentUserEmail)
 }
 
-// SaveSalt сохраняет соль для пользователя.
-func (s *DataService) SaveSalt(salt []byte, currentUserEmail string) error {
+// SaveLocalSalt сохраняет соль в локальное хранилище.
+func (s *DataService) SaveLocalSalt(salt []byte, currentUserEmail string) error {
 	return s.storage.SaveSalt(currentUserEmail, salt)
+}
+
+// GetRemoteSalt получает соль с сервера (через gRPC).
+func (s *DataService) GetRemoteSalt(ctx context.Context, token string) ([]byte, error) {
+	saltBase64, err := s.grpcclient.GetSalt(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	return base64.StdEncoding.DecodeString(saltBase64)
+}
+
+// SaveRemoteSalt сохраняет соль на сервере.
+func (s *DataService) SaveRemoteSalt(ctx context.Context, token string, salt []byte) error {
+	saltBase64 := base64.StdEncoding.EncodeToString(salt)
+	return s.grpcclient.SaveSalt(ctx, token, saltBase64)
+}
+
+func (s *DataService) GetEncryptedEntry(email string, id string) (string, error) {
+    return s.storage.GetEncryptedEntry(email, id)
+}
+
+func (c *DataService) SaveEncryptedEntry(email string, entry *models.DataEntry, encryptedData string) error {
+    return c.storage.SaveEncryptedEntry(email, entry, encryptedData)
 }
 
 // ErrWrongDataType возникает при попытке доступа к данным неверного типа.

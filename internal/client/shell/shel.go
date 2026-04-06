@@ -171,3 +171,9 @@ func parseLine(line string) []string {
 
 	return result
 }
+
+func (s *Shell) Stop() {
+    if s.reader != nil {
+        s.reader.Close()
+    }
+}

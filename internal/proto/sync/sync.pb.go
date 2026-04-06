@@ -26,24 +26,16 @@ const (
 
 // Entry - полная запись (с данными)
 type Entry struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name      string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Tags      []string               `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags,omitempty"`
-	DataType  string                 `protobuf:"bytes,5,opt,name=data_type,json=dataType,proto3" json:"data_type,omitempty"` // "login_password", "text", "binary", "bank_card"
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Version   int32                  `protobuf:"varint,8,opt,name=version,proto3" json:"version,omitempty"`
-	// Данные в зависимости от типа (oneof)
-	//
-	// Types that are valid to be assigned to Data:
-	//
-	//	*Entry_LoginData
-	//	*Entry_TextData
-	//	*Entry_BinaryData
-	//	*Entry_CardData
-	Data          isEntry_Data `protobuf_oneof:"data"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Tags          []string               `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags,omitempty"`
+	DataType      string                 `protobuf:"bytes,5,opt,name=data_type,json=dataType,proto3" json:"data_type,omitempty"` // "login_password", "text", "binary", "bank_card"
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Version       int32                  `protobuf:"varint,8,opt,name=version,proto3" json:"version,omitempty"`
+	EncryptedData string                 `protobuf:"bytes,9,opt,name=encrypted_data,json=encryptedData,proto3" json:"encrypted_data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -134,76 +126,12 @@ func (x *Entry) GetVersion() int32 {
 	return 0
 }
 
-func (x *Entry) GetData() isEntry_Data {
+func (x *Entry) GetEncryptedData() string {
 	if x != nil {
-		return x.Data
+		return x.EncryptedData
 	}
-	return nil
+	return ""
 }
-
-func (x *Entry) GetLoginData() *LoginPasswordData {
-	if x != nil {
-		if x, ok := x.Data.(*Entry_LoginData); ok {
-			return x.LoginData
-		}
-	}
-	return nil
-}
-
-func (x *Entry) GetTextData() *TextData {
-	if x != nil {
-		if x, ok := x.Data.(*Entry_TextData); ok {
-			return x.TextData
-		}
-	}
-	return nil
-}
-
-func (x *Entry) GetBinaryData() *BinaryData {
-	if x != nil {
-		if x, ok := x.Data.(*Entry_BinaryData); ok {
-			return x.BinaryData
-		}
-	}
-	return nil
-}
-
-func (x *Entry) GetCardData() *BankCardData {
-	if x != nil {
-		if x, ok := x.Data.(*Entry_CardData); ok {
-			return x.CardData
-		}
-	}
-	return nil
-}
-
-type isEntry_Data interface {
-	isEntry_Data()
-}
-
-type Entry_LoginData struct {
-	LoginData *LoginPasswordData `protobuf:"bytes,9,opt,name=login_data,json=loginData,proto3,oneof"`
-}
-
-type Entry_TextData struct {
-	TextData *TextData `protobuf:"bytes,10,opt,name=text_data,json=textData,proto3,oneof"`
-}
-
-type Entry_BinaryData struct {
-	BinaryData *BinaryData `protobuf:"bytes,11,opt,name=binary_data,json=binaryData,proto3,oneof"`
-}
-
-type Entry_CardData struct {
-	CardData *BankCardData `protobuf:"bytes,12,opt,name=card_data,json=cardData,proto3,oneof"`
-}
-
-func (*Entry_LoginData) isEntry_Data() {}
-
-func (*Entry_TextData) isEntry_Data() {}
-
-func (*Entry_BinaryData) isEntry_Data() {}
-
-func (*Entry_CardData) isEntry_Data() {}
 
 // EntryMeta - метаданные записи (только для сравнения)
 type EntryMeta struct {
@@ -213,6 +141,7 @@ type EntryMeta struct {
 	DeletedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
 	SyncedAt      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=synced_at,json=syncedAt,proto3" json:"synced_at,omitempty"`
 	Version       int32                  `protobuf:"varint,5,opt,name=version,proto3" json:"version,omitempty"`
+	Checksum      string                 `protobuf:"bytes,6,opt,name=checksum,proto3" json:"checksum,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -282,294 +211,9 @@ func (x *EntryMeta) GetVersion() int32 {
 	return 0
 }
 
-// LoginPasswordData - данные логина/пароля
-type LoginPasswordData struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Login         string                 `protobuf:"bytes,1,opt,name=login,proto3" json:"login,omitempty"`
-	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"` // зашифровано
-	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
-	Notes         string                 `protobuf:"bytes,4,opt,name=notes,proto3" json:"notes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *LoginPasswordData) Reset() {
-	*x = LoginPasswordData{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LoginPasswordData) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LoginPasswordData) ProtoMessage() {}
-
-func (x *LoginPasswordData) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LoginPasswordData.ProtoReflect.Descriptor instead.
-func (*LoginPasswordData) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *LoginPasswordData) GetLogin() string {
-	if x != nil {
-		return x.Login
-	}
-	return ""
-}
-
-func (x *LoginPasswordData) GetPassword() string {
-	if x != nil {
-		return x.Password
-	}
-	return ""
-}
-
-func (x *LoginPasswordData) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-func (x *LoginPasswordData) GetNotes() string {
-	if x != nil {
-		return x.Notes
-	}
-	return ""
-}
-
-// TextData - текстовые данные
-type TextData struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Content       string                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"` // зашифровано
-	Format        string                 `protobuf:"bytes,2,opt,name=format,proto3" json:"format,omitempty"`   // "plain", "markdown", "html"
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TextData) Reset() {
-	*x = TextData{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TextData) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TextData) ProtoMessage() {}
-
-func (x *TextData) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TextData.ProtoReflect.Descriptor instead.
-func (*TextData) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *TextData) GetContent() string {
-	if x != nil {
-		return x.Content
-	}
-	return ""
-}
-
-func (x *TextData) GetFormat() string {
-	if x != nil {
-		return x.Format
-	}
-	return ""
-}
-
-// BinaryData - бинарные данные
-type BinaryData struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Filename      string                 `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
-	Size          int64                  `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
-	MimeType      string                 `protobuf:"bytes,3,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
-	Content       []byte                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"` // зашифровано
-	Checksum      string                 `protobuf:"bytes,5,opt,name=checksum,proto3" json:"checksum,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BinaryData) Reset() {
-	*x = BinaryData{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BinaryData) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BinaryData) ProtoMessage() {}
-
-func (x *BinaryData) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BinaryData.ProtoReflect.Descriptor instead.
-func (*BinaryData) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *BinaryData) GetFilename() string {
-	if x != nil {
-		return x.Filename
-	}
-	return ""
-}
-
-func (x *BinaryData) GetSize() int64 {
-	if x != nil {
-		return x.Size
-	}
-	return 0
-}
-
-func (x *BinaryData) GetMimeType() string {
-	if x != nil {
-		return x.MimeType
-	}
-	return ""
-}
-
-func (x *BinaryData) GetContent() []byte {
-	if x != nil {
-		return x.Content
-	}
-	return nil
-}
-
-func (x *BinaryData) GetChecksum() string {
+func (x *EntryMeta) GetChecksum() string {
 	if x != nil {
 		return x.Checksum
-	}
-	return ""
-}
-
-// BankCardData - данные банковской карты
-type BankCardData struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CardNumber    string                 `protobuf:"bytes,1,opt,name=card_number,json=cardNumber,proto3" json:"card_number,omitempty"` // зашифровано
-	CardHolder    string                 `protobuf:"bytes,2,opt,name=card_holder,json=cardHolder,proto3" json:"card_holder,omitempty"`
-	ExpiryMonth   int32                  `protobuf:"varint,3,opt,name=expiry_month,json=expiryMonth,proto3" json:"expiry_month,omitempty"`
-	ExpiryYear    int32                  `protobuf:"varint,4,opt,name=expiry_year,json=expiryYear,proto3" json:"expiry_year,omitempty"`
-	Cvv           string                 `protobuf:"bytes,5,opt,name=cvv,proto3" json:"cvv,omitempty"` // зашифровано
-	CardType      string                 `protobuf:"bytes,6,opt,name=card_type,json=cardType,proto3" json:"card_type,omitempty"`
-	BankName      string                 `protobuf:"bytes,7,opt,name=bank_name,json=bankName,proto3" json:"bank_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BankCardData) Reset() {
-	*x = BankCardData{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BankCardData) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BankCardData) ProtoMessage() {}
-
-func (x *BankCardData) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BankCardData.ProtoReflect.Descriptor instead.
-func (*BankCardData) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *BankCardData) GetCardNumber() string {
-	if x != nil {
-		return x.CardNumber
-	}
-	return ""
-}
-
-func (x *BankCardData) GetCardHolder() string {
-	if x != nil {
-		return x.CardHolder
-	}
-	return ""
-}
-
-func (x *BankCardData) GetExpiryMonth() int32 {
-	if x != nil {
-		return x.ExpiryMonth
-	}
-	return 0
-}
-
-func (x *BankCardData) GetExpiryYear() int32 {
-	if x != nil {
-		return x.ExpiryYear
-	}
-	return 0
-}
-
-func (x *BankCardData) GetCvv() string {
-	if x != nil {
-		return x.Cvv
-	}
-	return ""
-}
-
-func (x *BankCardData) GetCardType() string {
-	if x != nil {
-		return x.CardType
-	}
-	return ""
-}
-
-func (x *BankCardData) GetBankName() string {
-	if x != nil {
-		return x.BankName
 	}
 	return ""
 }
@@ -589,7 +233,7 @@ type SyncRequest struct {
 
 func (x *SyncRequest) Reset() {
 	*x = SyncRequest{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[6]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +245,7 @@ func (x *SyncRequest) String() string {
 func (*SyncRequest) ProtoMessage() {}
 
 func (x *SyncRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[6]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +258,7 @@ func (x *SyncRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncRequest.ProtoReflect.Descriptor instead.
 func (*SyncRequest) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{6}
+	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SyncRequest) GetPayload() isSyncRequest_Payload {
@@ -684,7 +328,7 @@ type ClientSnapshot struct {
 
 func (x *ClientSnapshot) Reset() {
 	*x = ClientSnapshot{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[7]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -696,7 +340,7 @@ func (x *ClientSnapshot) String() string {
 func (*ClientSnapshot) ProtoMessage() {}
 
 func (x *ClientSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[7]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -709,7 +353,7 @@ func (x *ClientSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientSnapshot.ProtoReflect.Descriptor instead.
 func (*ClientSnapshot) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{7}
+	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ClientSnapshot) GetClientId() string {
@@ -729,14 +373,14 @@ func (x *ClientSnapshot) GetMetas() []*EntryMeta {
 // Ack - подтверждение получения инструкций
 type Ack struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ready         bool                   `protobuf:"varint,1,opt,name=ready,proto3" json:"ready,omitempty"` // подтверждение готовности получить записи
+	Ready         bool                   `protobuf:"varint,1,opt,name=ready,proto3" json:"ready,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Ack) Reset() {
 	*x = Ack{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[8]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -748,7 +392,7 @@ func (x *Ack) String() string {
 func (*Ack) ProtoMessage() {}
 
 func (x *Ack) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[8]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -761,7 +405,7 @@ func (x *Ack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ack.ProtoReflect.Descriptor instead.
 func (*Ack) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{8}
+	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Ack) GetReady() bool {
@@ -786,7 +430,7 @@ type SyncResponse struct {
 
 func (x *SyncResponse) Reset() {
 	*x = SyncResponse{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[9]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -798,7 +442,7 @@ func (x *SyncResponse) String() string {
 func (*SyncResponse) ProtoMessage() {}
 
 func (x *SyncResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[9]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -811,7 +455,7 @@ func (x *SyncResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncResponse.ProtoReflect.Descriptor instead.
 func (*SyncResponse) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{9}
+	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SyncResponse) GetPayload() isSyncResponse_Payload {
@@ -873,16 +517,16 @@ func (*SyncResponse_Complete) isSyncResponse_Payload() {}
 // SyncInstructions - инструкции для клиента (первый ответ)
 type SyncInstructions struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	NeedDownload   []string               `protobuf:"bytes,1,rep,name=need_download,json=needDownload,proto3" json:"need_download,omitempty"`         // ID записей, которые нужно скачать (сервер новее или нет у клиента)
-	NeedDelete     []string               `protobuf:"bytes,2,rep,name=need_delete,json=needDelete,proto3" json:"need_delete,omitempty"`               // ID записей, которые нужно удалить (нет на сервере)
-	NeedFromClient []string               `protobuf:"bytes,3,rep,name=need_from_client,json=needFromClient,proto3" json:"need_from_client,omitempty"` // ID записей, которые клиент должен отправить (клиент новее или нет на сервере)
+	NeedDownload   []string               `protobuf:"bytes,1,rep,name=need_download,json=needDownload,proto3" json:"need_download,omitempty"`         // ID записей, которые нужно скачать
+	NeedDelete     []string               `protobuf:"bytes,2,rep,name=need_delete,json=needDelete,proto3" json:"need_delete,omitempty"`               // ID записей, которые нужно удалить
+	NeedFromClient []string               `protobuf:"bytes,3,rep,name=need_from_client,json=needFromClient,proto3" json:"need_from_client,omitempty"` // ID записей, которые клиент должен отправить
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *SyncInstructions) Reset() {
 	*x = SyncInstructions{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[10]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -894,7 +538,7 @@ func (x *SyncInstructions) String() string {
 func (*SyncInstructions) ProtoMessage() {}
 
 func (x *SyncInstructions) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[10]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -907,7 +551,7 @@ func (x *SyncInstructions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncInstructions.ProtoReflect.Descriptor instead.
 func (*SyncInstructions) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{10}
+	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SyncInstructions) GetNeedDownload() []string {
@@ -934,15 +578,15 @@ func (x *SyncInstructions) GetNeedFromClient() []string {
 // SyncComplete - завершение синхронизации
 type SyncComplete struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	SyncedCount   int32                  `protobuf:"varint,1,opt,name=synced_count,json=syncedCount,proto3" json:"synced_count,omitempty"` // количество синхронизированных записей
-	SyncVersion   int64                  `protobuf:"varint,2,opt,name=sync_version,json=syncVersion,proto3" json:"sync_version,omitempty"` // версия синхронизации (для будущих оптимизаций)
+	SyncedCount   int32                  `protobuf:"varint,1,opt,name=synced_count,json=syncedCount,proto3" json:"synced_count,omitempty"`
+	SyncVersion   int64                  `protobuf:"varint,2,opt,name=sync_version,json=syncVersion,proto3" json:"sync_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SyncComplete) Reset() {
 	*x = SyncComplete{}
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[11]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -954,7 +598,7 @@ func (x *SyncComplete) String() string {
 func (*SyncComplete) ProtoMessage() {}
 
 func (x *SyncComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_sync_sync_proto_msgTypes[11]
+	mi := &file_internal_proto_sync_sync_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -967,7 +611,7 @@ func (x *SyncComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncComplete.ProtoReflect.Descriptor instead.
 func (*SyncComplete) Descriptor() ([]byte, []int) {
-	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{11}
+	return file_internal_proto_sync_sync_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SyncComplete) GetSyncedCount() int32 {
@@ -988,7 +632,7 @@ var File_internal_proto_sync_sync_proto protoreflect.FileDescriptor
 
 const file_internal_proto_sync_sync_proto_rawDesc = "" +
 	"\n" +
-	"\x1einternal/proto/sync/sync.proto\x12\x04sync\x1a\x1fgoogle/protobuf/timestamp.proto\"\xde\x03\n" +
+	"\x1einternal/proto/sync/sync.proto\x12\x04sync\x1a\x1fgoogle/protobuf/timestamp.proto\"\xac\x02\n" +
 	"\x05Entry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
@@ -999,15 +643,8 @@ const file_internal_proto_sync_sync_proto_rawDesc = "" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x18\n" +
-	"\aversion\x18\b \x01(\x05R\aversion\x128\n" +
-	"\n" +
-	"login_data\x18\t \x01(\v2\x17.sync.LoginPasswordDataH\x00R\tloginData\x12-\n" +
-	"\ttext_data\x18\n" +
-	" \x01(\v2\x0e.sync.TextDataH\x00R\btextData\x123\n" +
-	"\vbinary_data\x18\v \x01(\v2\x10.sync.BinaryDataH\x00R\n" +
-	"binaryData\x121\n" +
-	"\tcard_data\x18\f \x01(\v2\x12.sync.BankCardDataH\x00R\bcardDataB\x06\n" +
-	"\x04data\"\xe4\x01\n" +
+	"\aversion\x18\b \x01(\x05R\aversion\x12%\n" +
+	"\x0eencrypted_data\x18\t \x01(\tR\rencryptedData\"\x80\x02\n" +
 	"\tEntryMeta\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -1015,33 +652,8 @@ const file_internal_proto_sync_sync_proto_rawDesc = "" +
 	"\n" +
 	"deleted_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\x127\n" +
 	"\tsynced_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncedAt\x12\x18\n" +
-	"\aversion\x18\x05 \x01(\x05R\aversion\"m\n" +
-	"\x11LoginPasswordData\x12\x14\n" +
-	"\x05login\x18\x01 \x01(\tR\x05login\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x10\n" +
-	"\x03url\x18\x03 \x01(\tR\x03url\x12\x14\n" +
-	"\x05notes\x18\x04 \x01(\tR\x05notes\"<\n" +
-	"\bTextData\x12\x18\n" +
-	"\acontent\x18\x01 \x01(\tR\acontent\x12\x16\n" +
-	"\x06format\x18\x02 \x01(\tR\x06format\"\x8f\x01\n" +
-	"\n" +
-	"BinaryData\x12\x1a\n" +
-	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x12\n" +
-	"\x04size\x18\x02 \x01(\x03R\x04size\x12\x1b\n" +
-	"\tmime_type\x18\x03 \x01(\tR\bmimeType\x12\x18\n" +
-	"\acontent\x18\x04 \x01(\fR\acontent\x12\x1a\n" +
-	"\bchecksum\x18\x05 \x01(\tR\bchecksum\"\xe0\x01\n" +
-	"\fBankCardData\x12\x1f\n" +
-	"\vcard_number\x18\x01 \x01(\tR\n" +
-	"cardNumber\x12\x1f\n" +
-	"\vcard_holder\x18\x02 \x01(\tR\n" +
-	"cardHolder\x12!\n" +
-	"\fexpiry_month\x18\x03 \x01(\x05R\vexpiryMonth\x12\x1f\n" +
-	"\vexpiry_year\x18\x04 \x01(\x05R\n" +
-	"expiryYear\x12\x10\n" +
-	"\x03cvv\x18\x05 \x01(\tR\x03cvv\x12\x1b\n" +
-	"\tcard_type\x18\x06 \x01(\tR\bcardType\x12\x1b\n" +
-	"\tbank_name\x18\a \x01(\tR\bbankName\"\x90\x01\n" +
+	"\aversion\x18\x05 \x01(\x05R\aversion\x12\x1a\n" +
+	"\bchecksum\x18\x06 \x01(\tR\bchecksum\"\x90\x01\n" +
 	"\vSyncRequest\x122\n" +
 	"\bsnapshot\x18\x01 \x01(\v2\x14.sync.ClientSnapshotH\x00R\bsnapshot\x12#\n" +
 	"\x05entry\x18\x02 \x01(\v2\v.sync.EntryH\x00R\x05entry\x12\x1d\n" +
@@ -1080,46 +692,38 @@ func file_internal_proto_sync_sync_proto_rawDescGZIP() []byte {
 	return file_internal_proto_sync_sync_proto_rawDescData
 }
 
-var file_internal_proto_sync_sync_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_internal_proto_sync_sync_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_internal_proto_sync_sync_proto_goTypes = []any{
 	(*Entry)(nil),                 // 0: sync.Entry
 	(*EntryMeta)(nil),             // 1: sync.EntryMeta
-	(*LoginPasswordData)(nil),     // 2: sync.LoginPasswordData
-	(*TextData)(nil),              // 3: sync.TextData
-	(*BinaryData)(nil),            // 4: sync.BinaryData
-	(*BankCardData)(nil),          // 5: sync.BankCardData
-	(*SyncRequest)(nil),           // 6: sync.SyncRequest
-	(*ClientSnapshot)(nil),        // 7: sync.ClientSnapshot
-	(*Ack)(nil),                   // 8: sync.Ack
-	(*SyncResponse)(nil),          // 9: sync.SyncResponse
-	(*SyncInstructions)(nil),      // 10: sync.SyncInstructions
-	(*SyncComplete)(nil),          // 11: sync.SyncComplete
-	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(*SyncRequest)(nil),           // 2: sync.SyncRequest
+	(*ClientSnapshot)(nil),        // 3: sync.ClientSnapshot
+	(*Ack)(nil),                   // 4: sync.Ack
+	(*SyncResponse)(nil),          // 5: sync.SyncResponse
+	(*SyncInstructions)(nil),      // 6: sync.SyncInstructions
+	(*SyncComplete)(nil),          // 7: sync.SyncComplete
+	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
 }
 var file_internal_proto_sync_sync_proto_depIdxs = []int32{
-	12, // 0: sync.Entry.created_at:type_name -> google.protobuf.Timestamp
-	12, // 1: sync.Entry.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 2: sync.Entry.login_data:type_name -> sync.LoginPasswordData
-	3,  // 3: sync.Entry.text_data:type_name -> sync.TextData
-	4,  // 4: sync.Entry.binary_data:type_name -> sync.BinaryData
-	5,  // 5: sync.Entry.card_data:type_name -> sync.BankCardData
-	12, // 6: sync.EntryMeta.updated_at:type_name -> google.protobuf.Timestamp
-	12, // 7: sync.EntryMeta.deleted_at:type_name -> google.protobuf.Timestamp
-	12, // 8: sync.EntryMeta.synced_at:type_name -> google.protobuf.Timestamp
-	7,  // 9: sync.SyncRequest.snapshot:type_name -> sync.ClientSnapshot
-	0,  // 10: sync.SyncRequest.entry:type_name -> sync.Entry
-	8,  // 11: sync.SyncRequest.ack:type_name -> sync.Ack
-	1,  // 12: sync.ClientSnapshot.metas:type_name -> sync.EntryMeta
-	10, // 13: sync.SyncResponse.instructions:type_name -> sync.SyncInstructions
-	0,  // 14: sync.SyncResponse.entry:type_name -> sync.Entry
-	11, // 15: sync.SyncResponse.complete:type_name -> sync.SyncComplete
-	6,  // 16: sync.SyncService.Sync:input_type -> sync.SyncRequest
-	9,  // 17: sync.SyncService.Sync:output_type -> sync.SyncResponse
-	17, // [17:18] is the sub-list for method output_type
-	16, // [16:17] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	8,  // 0: sync.Entry.created_at:type_name -> google.protobuf.Timestamp
+	8,  // 1: sync.Entry.updated_at:type_name -> google.protobuf.Timestamp
+	8,  // 2: sync.EntryMeta.updated_at:type_name -> google.protobuf.Timestamp
+	8,  // 3: sync.EntryMeta.deleted_at:type_name -> google.protobuf.Timestamp
+	8,  // 4: sync.EntryMeta.synced_at:type_name -> google.protobuf.Timestamp
+	3,  // 5: sync.SyncRequest.snapshot:type_name -> sync.ClientSnapshot
+	0,  // 6: sync.SyncRequest.entry:type_name -> sync.Entry
+	4,  // 7: sync.SyncRequest.ack:type_name -> sync.Ack
+	1,  // 8: sync.ClientSnapshot.metas:type_name -> sync.EntryMeta
+	6,  // 9: sync.SyncResponse.instructions:type_name -> sync.SyncInstructions
+	0,  // 10: sync.SyncResponse.entry:type_name -> sync.Entry
+	7,  // 11: sync.SyncResponse.complete:type_name -> sync.SyncComplete
+	2,  // 12: sync.SyncService.Sync:input_type -> sync.SyncRequest
+	5,  // 13: sync.SyncService.Sync:output_type -> sync.SyncResponse
+	13, // [13:14] is the sub-list for method output_type
+	12, // [12:13] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_internal_proto_sync_sync_proto_init() }
@@ -1127,18 +731,12 @@ func file_internal_proto_sync_sync_proto_init() {
 	if File_internal_proto_sync_sync_proto != nil {
 		return
 	}
-	file_internal_proto_sync_sync_proto_msgTypes[0].OneofWrappers = []any{
-		(*Entry_LoginData)(nil),
-		(*Entry_TextData)(nil),
-		(*Entry_BinaryData)(nil),
-		(*Entry_CardData)(nil),
-	}
-	file_internal_proto_sync_sync_proto_msgTypes[6].OneofWrappers = []any{
+	file_internal_proto_sync_sync_proto_msgTypes[2].OneofWrappers = []any{
 		(*SyncRequest_Snapshot)(nil),
 		(*SyncRequest_Entry)(nil),
 		(*SyncRequest_Ack)(nil),
 	}
-	file_internal_proto_sync_sync_proto_msgTypes[9].OneofWrappers = []any{
+	file_internal_proto_sync_sync_proto_msgTypes[5].OneofWrappers = []any{
 		(*SyncResponse_Instructions)(nil),
 		(*SyncResponse_Entry)(nil),
 		(*SyncResponse_Complete)(nil),
@@ -1149,7 +747,7 @@ func file_internal_proto_sync_sync_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_proto_sync_sync_proto_rawDesc), len(file_internal_proto_sync_sync_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

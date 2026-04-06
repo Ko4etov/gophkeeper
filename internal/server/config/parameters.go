@@ -22,7 +22,6 @@ type ServerParameters struct {
 	DBAddress       string // Адрес базы данных
 	HashKey         string // Ключ для хеширования
 	CryptoKey       string // Файл с крипто ключом
-	UseGRPC         bool
 	GRPCAddress     string
 	JWTSecret       string
 	AccessTokenTTL  int
@@ -39,7 +38,6 @@ func parseServerParameters() *ServerParameters {
 	dbAddressParameter := dbAddressParameter()
 	hashKeyParameter := hashKeyParameter()
 	cryptoKeyParameter := cryptoKeyParameter()
-	useGRPCParameter := useGRPCParameter()
 	grpcAddressParameter := grpcAddressParameter()
 	JWTSecretParameter := JWTSecretParameter()
 	AccessTokenTTLParameter := accessTokenTTLParameter()
@@ -52,7 +50,6 @@ func parseServerParameters() *ServerParameters {
 		DBAddress:       dbAddressParameter,
 		HashKey:         hashKeyParameter,
 		CryptoKey:       cryptoKeyParameter,
-		UseGRPC:         useGRPCParameter,
 		GRPCAddress:     grpcAddressParameter,
 		JWTSecret:       JWTSecretParameter,
 		AccessTokenTTL:  AccessTokenTTLParameter,
@@ -151,18 +148,6 @@ func cryptoKeyParameter() string {
 	flag.StringVar(&cryptoKey, "crypto_key", cryptoKey, "Crypto key")
 
 	return cryptoKey
-}
-
-func useGRPCParameter() bool {
-	useGRPC := false
-
-	if env, ok := os.LookupEnv("USE_GRPC"); ok {
-		useGRPC, _ = strconv.ParseBool(env)
-	}
-
-	flag.BoolVar(&useGRPC, "use_grpc", useGRPC, "Use gRPC protocol")
-
-	return useGRPC
 }
 
 func grpcAddressParameter() string {

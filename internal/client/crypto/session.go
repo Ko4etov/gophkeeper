@@ -2,24 +2,71 @@
 package crypto
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
 )
 
 // Session управляет сессией разблокированного хранилища.
-// Хранит шифровальщик в памяти и автоматически блокируется после таймаута.
 type Session struct {
 	mu           sync.RWMutex
 	encryptor    *Encryptor
 	lastActivity time.Time
 	timeout      time.Duration
+	stopAutoLock chan struct{}
+	wg           sync.WaitGroup
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 // NewSession создает новую сессию с указанным таймаутом бездействия.
-func NewSession(timeout time.Duration) *Session {
-	return &Session{
-		timeout: timeout,
+func NewSession(ctx context.Context, timeout time.Duration) *Session {
+	sessionCtx, cancel := context.WithCancel(ctx)
+	
+	s := &Session{
+		timeout:      timeout,
+		stopAutoLock: make(chan struct{}),
+		ctx:          sessionCtx,
+		cancel:       cancel,
+	}
+	s.startAutoLock()
+	return s
+}
+
+// startAutoLock запускает фоновую горутину для автоматической блокировки.
+func (s *Session) startAutoLock() {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		ticker := time.NewTicker(s.timeout / 2)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				s.checkAndLock()
+			case <-s.stopAutoLock:
+				return
+			case <-s.ctx.Done():
+				s.Lock()
+				return
+			}
+		}
+	}()
+}
+
+// checkAndLock проверяет таймаут и блокирует сессию при необходимости.
+func (s *Session) checkAndLock() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.encryptor == nil {
+		return
+	}
+
+	if time.Since(s.lastActivity) > s.timeout {
+		s.encryptor = nil
 	}
 }
 
@@ -49,7 +96,7 @@ func (s *Session) IsUnlocked() bool {
 	}
 
 	if time.Since(s.lastActivity) > s.timeout {
-		go s.Lock()
+		s.encryptor = nil
 		return false
 	}
 
@@ -80,10 +127,18 @@ func (s *Session) GetEncryptor() (*Encryptor, error) {
 	}
 
 	if time.Since(s.lastActivity) > s.timeout {
+		s.encryptor = nil
 		return nil, ErrLocked
 	}
 
 	return s.encryptor, nil
+}
+
+// Stop останавливает фоновую горутину автоматической блокировки.
+func (s *Session) Stop() {
+	close(s.stopAutoLock)
+	s.cancel()
+	s.wg.Wait()
 }
 
 // ErrLocked возникает при попытке доступа к заблокированному хранилищу.

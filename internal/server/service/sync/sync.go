@@ -2,8 +2,6 @@ package sync
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	syncproto "github.com/Ko4etov/gophkeeper/internal/proto/sync"
@@ -17,10 +15,10 @@ import (
 
 type SyncService struct {
 	syncproto.UnimplementedSyncServiceServer
-	storage *storage.Storage
+	storage storage.StorageInterface
 }
 
-func NewSyncService(storage *storage.Storage) *SyncService {
+func NewSyncService(storage storage.StorageInterface) *SyncService {
 	return &SyncService{
 		storage: storage,
 	}
@@ -42,9 +40,9 @@ func (s *SyncService) Sync(stream syncproto.SyncService_SyncServer) error {
 	}
 
 	snapshot := req.GetSnapshot()
-    if snapshot == nil {
-        return status.Error(codes.InvalidArgument, "first message must be snapshot")
-    }
+	if snapshot == nil {
+		return status.Error(codes.InvalidArgument, "first message must be snapshot")
+	}
 
 	serverRecords, err := s.storage.GetAllRecordsMeta(ctx, userID)
 	if err != nil {
@@ -118,6 +116,7 @@ func (s *SyncService) Sync(stream syncproto.SyncService_SyncServer) error {
 		return err
 	}
 
+	// Получаем записи от клиента (needFromClient)
 	for i := 0; i < len(needFromClient); i++ {
 		msg, err := stream.Recv()
 		if err != nil {
@@ -129,25 +128,30 @@ func (s *SyncService) Sync(stream syncproto.SyncService_SyncServer) error {
 			return status.Error(codes.InvalidArgument, "expected entry")
 		}
 
+		// Конвертируем proto Entry в storage.Record (с encrypted_data)
 		record, err := s.convertProtoEntryToModel(entry)
 		if err != nil {
 			logger.Logger.Errorf("Failed to convert entry %s: %v", entry.Id, err)
 			continue
 		}
 
+		// Сохраняем или обновляем запись
 		if _, exists := serverMap[entry.Id]; exists {
-			err := s.storage.UpdateRecord(ctx, userID, record)
-			if err != nil {
-				logger.Logger.Info("cant update record: %w", err)
+			if err := s.storage.UpdateRecord(ctx, userID, record); err != nil {
+				logger.Logger.Errorf("Failed to update record %s: %v", entry.Id, err)
+			} else {
+				logger.Logger.Infof("Updated record from client: %s (version %d)", entry.Id, entry.Version)
 			}
 		} else {
-			err := s.storage.CreateRecord(ctx, userID, record)
-			if err != nil {
-				logger.Logger.Errorf("cant create record: %w", err)
+			if err := s.storage.CreateRecord(ctx, userID, record); err != nil {
+				logger.Logger.Errorf("Failed to create record %s: %v", entry.Id, err)
+			} else {
+				logger.Logger.Infof("Created record from client: %s (version %d)", entry.Id, entry.Version)
 			}
 		}
 	}
 
+	// Отправляем записи клиенту (needDownload)
 	if len(needDownload) > 0 {
 		fullRecords, err := s.storage.GetFullRecordsByIDs(ctx, userID, needDownload)
 		if err != nil {
@@ -183,100 +187,41 @@ func (s *SyncService) Sync(stream syncproto.SyncService_SyncServer) error {
 }
 
 func isTsZero(ts *timestamppb.Timestamp) bool {
-    if ts == nil {
-        return true
-    }
-    if ts.Seconds == -62135596800 && ts.Nanos == 0 {
-        return true
-    }
-    return ts.Seconds == 0 && ts.Nanos == 0
-}
-
-// extractDataJSON извлекает JSON из entry
-func (s *SyncService) extractDataJSON(entry *syncproto.Entry) (json.RawMessage, error) {
-	switch data := entry.Data.(type) {
-	case *syncproto.Entry_LoginData:
-		return json.Marshal(data.LoginData)
-	case *syncproto.Entry_CardData:
-		return json.Marshal(data.CardData)
-	case *syncproto.Entry_TextData:
-		return json.Marshal(data.TextData)
-	case *syncproto.Entry_BinaryData:
-		return json.Marshal(data.BinaryData)
-	default:
-		return nil, nil
+	if ts == nil {
+		return true
 	}
+	if ts.Seconds == -62135596800 && ts.Nanos == 0 {
+		return true
+	}
+	return ts.Seconds == 0 && ts.Nanos == 0
 }
 
-// convertToProtoEntry конвертирует ServerRecord в proto Entry
+// convertToProtoEntry конвертирует Record в proto Entry
 func (s *SyncService) convertToProtoEntry(record *storage.Record) *syncproto.Entry {
-	entry := &syncproto.Entry{
-		Id:          record.ClientID,
-		UserId:      record.UserID,
-		Name:        record.Name,
-		Tags:        record.Tags,
-		DataType:    record.DataType,
-		Version:     record.Version,
-		CreatedAt:   timestamppb.New(record.CreatedAt),
-		UpdatedAt:   timestamppb.New(record.UpdatedAt),
+	return &syncproto.Entry{
+		Id:            record.ClientID,
+		UserId:        record.UserID,
+		Name:          record.Name,
+		Tags:          record.Tags,
+		DataType:      record.DataType,
+		Version:       record.Version,
+		CreatedAt:     timestamppb.New(record.CreatedAt),
+		UpdatedAt:     timestamppb.New(record.UpdatedAt),
+		EncryptedData: string(record.Data), // Данные уже зашифрованы клиентом
 	}
-
-	switch record.DataType {
-	case "login_password":
-		var data syncproto.LoginPasswordData
-		if err := json.Unmarshal(record.Data, &data); err == nil {
-			entry.Data = &syncproto.Entry_LoginData{LoginData: &data}
-		}
-	case "bank_card":
-		var data syncproto.BankCardData
-		if err := json.Unmarshal(record.Data, &data); err == nil {
-			entry.Data = &syncproto.Entry_CardData{CardData: &data}
-		}
-	case "text":
-		var data syncproto.TextData
-		if err := json.Unmarshal(record.Data, &data); err == nil {
-			entry.Data = &syncproto.Entry_TextData{TextData: &data}
-		}
-	case "binary":
-		var data syncproto.BinaryData
-		if err := json.Unmarshal(record.Data, &data); err == nil {
-			entry.Data = &syncproto.Entry_BinaryData{BinaryData: &data}
-		}
-	}
-
-	return entry
 }
 
+// convertProtoEntryToModel конвертирует proto Entry в storage.Record
 func (s *SyncService) convertProtoEntryToModel(entry *syncproto.Entry) (*storage.Record, error) {
-	record := &storage.Record{
+	return &storage.Record{
 		ClientID:  entry.Id,
 		UserID:    entry.UserId,
 		DataType:  entry.DataType,
 		Name:      entry.Name,
 		Tags:      entry.Tags,
+		Data:      []byte(entry.EncryptedData), // Зашифрованные данные от клиента
 		Version:   entry.Version,
 		CreatedAt: entry.CreatedAt.AsTime(),
 		UpdatedAt: entry.UpdatedAt.AsTime(),
-	}
-
-	// Извлекаем и сохраняем Data в зависимости от типа
-	var err error
-	switch data := entry.Data.(type) {
-	case *syncproto.Entry_LoginData:
-		record.Data, err = json.Marshal(data.LoginData)
-	case *syncproto.Entry_CardData:
-		record.Data, err = json.Marshal(data.CardData)
-	case *syncproto.Entry_TextData:
-		record.Data, err = json.Marshal(data.TextData)
-	case *syncproto.Entry_BinaryData:
-		record.Data, err = json.Marshal(data.BinaryData)
-	default:
-		return nil, fmt.Errorf("unknown data type for entry %s", entry.Id)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal data for entry %s: %w", entry.Id, err)
-	}
-
-	return record, nil
+	}, nil
 }

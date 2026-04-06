@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/Ko4etov/gophkeeper/internal/server/migrations"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -27,8 +29,14 @@ func RunMigrations(connString string) error {
 		return fmt.Errorf("failed to create driver: %w", err)
 	}
 
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://internal/server/migrations",
+	sourceDriver, err := iofs.New(migrations.FS, ".")
+	if err != nil {
+		return fmt.Errorf("failed to create source driver: %w", err)
+	}
+
+	m, err := migrate.NewWithInstance(
+		"iofs",
+		sourceDriver,
 		"goophkeeper",
 		driver,
 	)

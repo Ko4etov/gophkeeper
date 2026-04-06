@@ -32,23 +32,32 @@ type ClientParameters struct {
 // parseClientParameters загружает параметры из .env, переменных окружения и флагов.
 // Приоритет: флаги > переменные окружения > значения по умолчанию.
 func parseClientParameters() (*ClientParameters, error) {
-	_ = godotenv.Load() // игнорируем ошибку, файл .env опционален
+	_ = godotenv.Load()
+
+	serverAddressParameter := serverAddressParameter()
+	dataDirParameter := dataDirParameter()
+	insecureTLSParameter := insecureTLSParameter()
+	syncIntervalParameter := syncIntervalParameter()
+	historySizeParameter := historySizeParameter()
+	caCertPath := caCertPathParameter()
+	clientCertPathParameter := clientCertPathParameter()
+	clientKeyPathParameter := clientKeyPathParameter()
 
 	flag.Parse()
 
 	return &ClientParameters{
-		ServerAddress:  serverAddressParam(),
-		DataDir:        dataDirParam(),
-		InsecureTLS:    insecureTLSParam(),
-		SyncInterval:   syncIntervalParam(),
-		HistorySize:    historySizeParam(),
-		CACertPath:     caCertPathParameter(),
-		ClientCertPath: clientCertPathParameter(),
-		ClientKeyPath:  clientKeyPathParameter(),
+		ServerAddress:  serverAddressParameter,
+		DataDir:        dataDirParameter,
+		InsecureTLS:    insecureTLSParameter,
+		SyncInterval:   syncIntervalParameter,
+		HistorySize:    historySizeParameter,
+		CACertPath:     caCertPath,
+		ClientCertPath: clientCertPathParameter,
+		ClientKeyPath:  clientKeyPathParameter,
 	}, nil
 }
 
-func serverAddressParam() string {
+func serverAddressParameter() string {
 	val := serverAddress
 	if env := os.Getenv("SERVER_ADDRESS"); env != "" {
 		val = env
@@ -57,7 +66,7 @@ func serverAddressParam() string {
 	return val
 }
 
-func dataDirParam() string {
+func dataDirParameter() string {
 	val := getDefaultDataDir()
 	if env := os.Getenv("DATA_DIR"); env != "" {
 		val = env
@@ -66,7 +75,7 @@ func dataDirParam() string {
 	return val
 }
 
-func insecureTLSParam() bool {
+func insecureTLSParameter() bool {
 	val := insecureTLS
 	if env := os.Getenv("INSECURE_TLS"); env != "" {
 		val, _ = strconv.ParseBool(env)
@@ -75,7 +84,7 @@ func insecureTLSParam() bool {
 	return val
 }
 
-func syncIntervalParam() int {
+func syncIntervalParameter() int {
 	val := syncInterval
 	if env := os.Getenv("SYNC_INTERVAL"); env != "" {
 		if v, err := strconv.Atoi(env); err == nil {
@@ -86,7 +95,7 @@ func syncIntervalParam() int {
 	return val
 }
 
-func historySizeParam() int {
+func historySizeParameter() int {
 	val := historySize
 	if env := os.Getenv("HISTORY_SIZE"); env != "" {
 		if v, err := strconv.Atoi(env); err == nil {

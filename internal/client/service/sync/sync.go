@@ -183,13 +183,20 @@ func (m *SyncManager) sync(email string) error {
 
 	if len(instructions.NeedFromClient) > 0 {
 		for _, id := range instructions.NeedFromClient {
+			encryptedData, err := m.dataService.GetEncryptedEntry(email, id)
+			if err != nil {
+				fmt.Printf("Failed to get encrypted entry %s: %v\n", id, err)
+				continue
+			}
+
+			// Получаем метаданные для записи
 			entry, err := m.dataService.Get(email, id)
 			if err != nil {
 				fmt.Printf("Failed to get entry %s: %v\n", id, err)
 				continue
 			}
 
-			protoEntry := m.convertModelToProto(entry, user.ID)
+			protoEntry := m.convertModelToProtoWithEncryptedData(entry, user.ID, encryptedData)
 			if protoEntry == nil {
 				continue
 			}
@@ -203,7 +210,6 @@ func (m *SyncManager) sync(email string) error {
 			}
 
 			entry.Meta.SyncedAt = time.Now()
-
 			m.dataService.SaveEntry(user.Email, entry)
 		}
 	}
@@ -238,97 +244,60 @@ func (m *SyncManager) sync(email string) error {
 
 // convertModelToProto преобразует models.DataEntry в protosync.Entry
 func (m *SyncManager) convertModelToProto(entry *models.DataEntry, userID string) *protosync.Entry {
-	protoEntry := &protosync.Entry{
-		Id:        entry.Meta.ID,
-		UserId:    userID,
-		Name:      entry.Meta.Name,
-		Tags:      entry.Meta.Tags,
-		DataType:  string(entry.Meta.DataType),
-		CreatedAt: timestamppb.New(entry.Meta.CreatedAt),
-		UpdatedAt: timestamppb.New(entry.Meta.UpdatedAt),
-		Version:   int32(entry.Meta.Version),
-	}
-
-	switch data := entry.Data.(type) {
-	case models.LoginPasswordData:
-		protoEntry.Data = &protosync.Entry_LoginData{
-			LoginData: &protosync.LoginPasswordData{
-				Login:    data.Login,
-				Password: data.Password,
-				Url:      data.URL,
-				Notes:    data.Notes,
-			},
-		}
-	case models.BankCardData:
-		protoEntry.Data = &protosync.Entry_CardData{
-			CardData: &protosync.BankCardData{
-				CardNumber:  data.CardNumber,
-				CardHolder:  data.CardHolder,
-				ExpiryMonth: int32(data.ExpiryMonth),
-				ExpiryYear:  int32(data.ExpiryYear),
-				Cvv:         data.CVV,
-				CardType:    data.CardType,
-				BankName:    data.BankName,
-			},
-		}
-	case models.TextData:
-		protoEntry.Data = &protosync.Entry_TextData{
-			TextData: &protosync.TextData{
-				Content: data.Content,
-				Format:  data.Format,
-			},
-		}
-	default:
+	encryptedData, err := m.dataService.GetEncryptedEntry(userID, entry.Meta.ID)
+	if err != nil {
+		fmt.Printf("Failed to get encrypted data for %s: %v\n", entry.Meta.ID, err)
 		return nil
 	}
 
-	return protoEntry
+	return &protosync.Entry{
+		Id:            entry.Meta.ID,
+		UserId:        userID,
+		Name:          entry.Meta.Name,
+		Tags:          entry.Meta.Tags,
+		DataType:      string(entry.Meta.DataType),
+		CreatedAt:     timestamppb.New(entry.Meta.CreatedAt),
+		UpdatedAt:     timestamppb.New(entry.Meta.UpdatedAt),
+		Version:       int32(entry.Meta.Version),
+		EncryptedData: encryptedData, // ✅ отправляем зашифрованные данные
+	}
 }
 
 // saveProtoEntryLocally сохраняет protosync.Entry в локальное хранилище
 func (m *SyncManager) saveProtoEntryLocally(email string, protoEntry *protosync.Entry) {
-	var data interface{}
-	switch d := protoEntry.Data.(type) {
-	case *protosync.Entry_LoginData:
-		data = models.LoginPasswordData{
-			Login:    d.LoginData.Login,
-			Password: d.LoginData.Password,
-			URL:      d.LoginData.Url,
-			Notes:    d.LoginData.Notes,
-		}
-	case *protosync.Entry_CardData:
-		data = models.BankCardData{
-			CardNumber:  d.CardData.CardNumber,
-			CardHolder:  d.CardData.CardHolder,
-			ExpiryMonth: int(d.CardData.ExpiryMonth),
-			ExpiryYear:  int(d.CardData.ExpiryYear),
-			CVV:         d.CardData.Cvv,
-			CardType:    d.CardData.CardType,
-			BankName:    d.CardData.BankName,
-		}
-	case *protosync.Entry_TextData:
-		data = models.TextData{
-			Content: d.TextData.Content,
-			Format:  d.TextData.Format,
-		}
-	default:
-		return
+    entry := &models.DataEntry{
+        Meta: models.DataMeta{
+            ID:        protoEntry.Id,
+            Name:      protoEntry.Name,
+            Tags:      protoEntry.Tags,
+            CreatedAt: protoEntry.CreatedAt.AsTime(),
+            UpdatedAt: protoEntry.UpdatedAt.AsTime(),
+            Version:   int(protoEntry.Version),
+            DataType:  models.DataType(protoEntry.DataType),
+        },
+    }
+
+    // Сохраняем зашифрованные данные напрямую (storage сам расшифрует при чтении)
+    // Передаем encrypted_data как есть
+    if err := m.dataService.SaveEncryptedEntry(email, entry, protoEntry.EncryptedData); err != nil {
+        fmt.Printf("Failed to save entry %s: %v\n", protoEntry.Id, err)
+    }
+}
+
+func (m *SyncManager) convertModelToProtoWithEncryptedData(entry *models.DataEntry, userID string, encryptedData string) *protosync.Entry {
+	protoEntry := &protosync.Entry{
+		Id:            entry.Meta.ID,
+		UserId:        userID,
+		Name:          entry.Meta.Name,
+		Tags:          entry.Meta.Tags,
+		DataType:      string(entry.Meta.DataType),
+		CreatedAt:     timestamppb.New(entry.Meta.CreatedAt),
+		UpdatedAt:     timestamppb.New(entry.Meta.UpdatedAt),
+		Version:       int32(entry.Meta.Version),
+		EncryptedData: encryptedData,
 	}
 
-	entry := &models.DataEntry{
-		Meta: models.DataMeta{
-			ID:        protoEntry.Id,
-			Name:      protoEntry.Name,
-			Tags:      protoEntry.Tags,
-			CreatedAt: protoEntry.CreatedAt.AsTime(),
-			UpdatedAt: protoEntry.UpdatedAt.AsTime(),
-			Version:   int(protoEntry.Version),
-			DataType:  models.DataType(protoEntry.DataType),
-		},
-		Data: data,
-	}
-
-	_ = m.dataService.SaveEntry(email, entry)
+	return protoEntry
 }
 
 // GetLastSync возвращает время последней синхронизации
